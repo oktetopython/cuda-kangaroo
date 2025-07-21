@@ -438,3 +438,5 @@ Expected time: several years on 256 Tesla V100 (**Not possible with this program
        https://www.math.auckland.ac.nz/~sgal018/crypto-book/ch14.pdf
  - [4] Kangaroos, Monopoly and Discrete Logarithms\
        https://web.northeastern.edu/seigen/11Magic/KruskalsCount/PollardKangarooMonopoly.pdf
+#   k a n g a r o o - e x t  
+ 
