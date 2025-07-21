@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\mybitcoin\2\Kangaroo\CMakeFiles\410ca9a7aa784f76e902ba3ac047ab1f\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{AD040627-11B1-3A69-B1D1-B8F27D424098}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

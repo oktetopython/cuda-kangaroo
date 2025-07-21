@@ -1,0 +1,3 @@
+D:/mybitcoin/2/Kangaroo/CMakeFiles/kangaroo.dir
+D:/mybitcoin/2/Kangaroo/CMakeFiles/ALL_BUILD.dir
+D:/mybitcoin/2/Kangaroo/CMakeFiles/ZERO_CHECK.dir
