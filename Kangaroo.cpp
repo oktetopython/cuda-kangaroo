@@ -15,21 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Kangaroo.h"
-#include <fstream>
-#include "SECPK1/IntGroup.h"
-#include "Timer.h"
-#include <string.h>
-#define _USE_MATH_DEFINES
-#include <math.h>
-#include <algorithm>
-#ifndef WIN64
-#include <pthread.h>
-#endif
-
-using namespace std;
-
-#define safe_delete_array(x) if(x) {delete[] x;x=NULL;}
+// ============================================================================
+// 🧹 CLEANED: 使用统一头文件，消除重复包含和宏定义
+// ============================================================================
+#include "KangarooCommon.h"
 
 // ----------------------------------------------------------------------------
 
@@ -537,16 +526,16 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
       for(int g = 0; g < CPU_GRP_SIZE && !endOfSearch; g++) {
 
         if(IsDP(ph->px[g].bits64[3])) {
+          // 🛡️ FIXED: 扩大临界区，避免竞态条件
           LOCK(ghMutex);
+          // 在锁内再次检查endOfSearch，确保一致性
           if(!endOfSearch) {
-
             if(!AddToTable(&ph->px[g],&ph->distance[g],g % 2)) {
               // Collision inside the same herd
               // We need to reset the kangaroo
               CreateHerd(1,&ph->px[g],&ph->py[g],&ph->distance[g],g % 2,false);
               collisionInSameHerd++;
             }
-
           }
           UNLOCK(ghMutex);
         }
@@ -607,11 +596,25 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
   if( ph->px==NULL ) {
     if(keyIdx == 0)
       ::printf("SolveKeyGPU Thread GPU#%d: creating kangaroos...\n",ph->gpuId);
-    // Create Kangaroos, if not already loaded
+
+    // 🛡️ FIXED: 使用安全的内存分配，添加异常处理
     uint64_t nbThread = gpu->GetNbThread();
-    ph->px = new Int[ph->nbKangaroo];
-    ph->py = new Int[ph->nbKangaroo];
-    ph->distance = new Int[ph->nbKangaroo];
+
+    // 使用安全分配函数
+    ph->px = KangarooUtils::safe_alloc<Int>(ph->nbKangaroo, "GPU kangaroo px");
+    ph->py = KangarooUtils::safe_alloc<Int>(ph->nbKangaroo, "GPU kangaroo py");
+    ph->distance = KangarooUtils::safe_alloc<Int>(ph->nbKangaroo, "GPU kangaroo distance");
+
+    // 检查分配是否成功
+    if (!ph->px || !ph->py || !ph->distance) {
+      // 清理已分配的内存
+      safe_delete_array(ph->px);
+      safe_delete_array(ph->py);
+      safe_delete_array(ph->distance);
+      delete gpu;
+      ::printf("[ERROR] Failed to allocate GPU kangaroo memory\n");
+      return;
+    }
 
     for(uint64_t i = 0; i<nbThread; i++) {
       CreateHerd(GPU_GRP_SIZE,&(ph->px[i*GPU_GRP_SIZE]),

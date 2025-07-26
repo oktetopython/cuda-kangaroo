@@ -15,22 +15,11 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Kangaroo.h"
-#include <fstream>
-#include "SECPK1/IntGroup.h"
-#include "Timer.h"
-#include <string.h>
-#define _USE_MATH_DEFINES
-#include <math.h>
-#include <algorithm>
+// ============================================================================
+// 🧹 CLEANED: 使用统一头文件，消除重复包含
+// ============================================================================
+#include "KangarooCommon.h"
 #include <signal.h>
-#ifndef WIN64
-#include <pthread.h>
-#else
-#include "WindowsErrors.h"
-#endif
-
-using namespace std;
 
 static SOCKET serverSock = 0;
 

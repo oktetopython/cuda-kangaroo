@@ -15,20 +15,10 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Kangaroo.h"
-#include <fstream>
-#include "SECPK1/IntGroup.h"
-#include "Timer.h"
-#include <string.h>
-#define _USE_MATH_DEFINES
-#include <math.h>
-#include <algorithm>
-#ifndef WIN64
-#include <pthread.h>
-#define _strdup strdup
-#endif
-
-using namespace std;
+// ============================================================================
+// 🧹 CLEANED: 使用统一头文件，消除重复包含
+// ============================================================================
+#include "KangarooCommon.h"
 
 uint32_t Kangaroo::CheckHash(uint32_t h,uint32_t nbItem,HashTable* hT,FILE* f) {
 
@@ -54,10 +44,22 @@ uint32_t Kangaroo::CheckHash(uint32_t h,uint32_t nbItem,HashTable* hT,FILE* f) {
 
   } else {
 
+    // 🛡️ FIXED: 添加内存分配检查和文件大小验证
     items = (ENTRY*)malloc(nbItem * sizeof(ENTRY));
+    CHECK_ALLOC(items, "CheckHash ENTRY allocation");
+
+    // 验证文件大小足够读取所有条目
+    if (!KangarooUtils::validate_file_size(f, nbItem * 32, "CheckHash file validation")) {
+      free(items);
+      return nbWrong;
+    }
 
     for(uint32_t i = 0; i < nbItem; i++) {
-      ::fread(items+i,32,1,f);
+      // 🛡️ FIXED: 使用安全的文件读取函数
+      if (!KangarooUtils::safe_fread(items+i, 32, 1, f, "CheckHash entry read")) {
+        free(items);
+        return nbWrong;
+      }
       e = items + i;
       Int dist;
       uint32_t kType;

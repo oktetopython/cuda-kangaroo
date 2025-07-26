@@ -15,20 +15,13 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "Kangaroo.h"
-#include <fstream>
-#include "SECPK1/IntGroup.h"
-#include "Timer.h"
-#include <string.h>
-#define _USE_MATH_DEFINES
-#include <math.h>
-#include <algorithm>
+// ============================================================================
+// 🧹 CLEANED: 使用统一头文件，消除重复包含
+// ============================================================================
+#include "KangarooCommon.h"
 #ifndef WIN64
 #include <dirent.h>
-#include <pthread.h>
 #endif
-
-using namespace std;
 
 bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest,bool printStat) {
 

@@ -15,12 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+// ============================================================================
+// 🧹 CLEANED: 使用统一头文件，消除重复包含
+// ============================================================================
+#include "KangarooCommon.h"
 #include "HashTable.h"
 #include <stdio.h>
 #include <math.h>
-#ifndef WIN64
-#include <string.h>
-#endif
 
 #define GET(hash,id) E[hash].items[id]
 
@@ -230,13 +231,26 @@ int HashTable::Add(Int *x,Int *d,uint32_t type) {
 }
 
 void HashTable::ReAllocate(uint64_t h,uint32_t add) {
+  // 🛡️ FIXED: 使用安全的内存重分配，避免中间状态风险
 
-  E[h].maxItem += add;
-  ENTRY** nitems = (ENTRY**)malloc(sizeof(ENTRY*) * E[h].maxItem);
-  memcpy(nitems,E[h].items,sizeof(ENTRY*) * E[h].nbItem);
-  free(E[h].items);
-  E[h].items = nitems;
+  uint32_t old_max = E[h].maxItem;
+  uint32_t new_max = old_max + add;
 
+  // 使用realloc更安全
+  ENTRY** new_items = (ENTRY**)KangarooUtils::safe_realloc(
+    E[h].items,
+    sizeof(ENTRY*) * old_max,
+    sizeof(ENTRY*) * new_max,
+    "HashTable::ReAllocate"
+  );
+
+  if (!new_items) {
+    ::printf("[ERROR] HashTable::ReAllocate failed for hash %llu\n", h);
+    return; // 保持原状态，不修改maxItem
+  }
+
+  E[h].items = new_items;
+  E[h].maxItem = new_max;
 }
 
 int HashTable::Add(uint64_t h,int128_t *x,int128_t *d) {
