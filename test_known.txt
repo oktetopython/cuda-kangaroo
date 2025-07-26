@@ -1,0 +1,7 @@
+# Test case with known private key
+# Private key: 0x12345 (74565 decimal)
+# This is a small test case for verification
+
+10000
+20000
+038b00fcbfc1a203f44bf123fc7f4c91c10a85c8eae9187f9d22242b4600ce781c

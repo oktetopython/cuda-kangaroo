@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Kangaroo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\HashTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\HashTable512.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Thread.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Timer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Merge.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\PartMerge.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Network.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Backup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\Check.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\BernsteinTable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\hash\sha256.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\SECPK1\Int.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\SECPK1\IntGroup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\SECPK1\IntMod.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\SECPK1\Point.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\SECPK1\SECP256K1.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\SECPK1\Random.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\GPU\GPUGenerate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="..\GPU\GPUEngine.cu">
+      <Filter>Source Files</Filter>
+    </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="D:\mybitcoin\2\cuda-bsgs-production-full\Kangaroo\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{166EAD18-C7D3-39B4-8F04-F2D4A8DA5F7B}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
