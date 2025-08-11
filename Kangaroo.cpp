@@ -15,10 +15,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-// ============================================================================
-// 🧹 CLEANED: 使用统一头文件，消除重复包含和宏定义
-// ============================================================================
-#include "KangarooCommon.h"
+#include "Kangaroo.h"
+#include <fstream>
+#include "SECPK1/IntGroup.h"
+#ifdef WIN64
+#include <Windows.h>
+#else
+// Linux atomic operations
+#include <stdint.h>
+#endif
+#include "Timer.h"
+#include <string.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+#include <algorithm>
+#ifndef WIN64
+#include <pthread.h>
+#endif
+
+using namespace std;
+
+#define safe_delete_array(x) if(x) {delete[] x;x=NULL;}
 
 // ----------------------------------------------------------------------------
 
@@ -53,8 +70,6 @@ Kangaroo::Kangaroo(Secp256K1 *secp,int32_t initDPSize,bool useGpu,string &workFi
   this->keyIdx = 0;
   this->splitWorkfile = splitWorkfile;
   this->pid = Timer::getPID();
-  this->use512BitHashTable = false; // 默认使用128-bit，根据范围自动切换
-
 
   CPU_GRP_SIZE = 1024;
 
@@ -132,11 +147,6 @@ bool Kangaroo::ParseConfigFile(std::string &fileName) {
 
   return true;
 
-}
-
-// ----------------------------------------------------------------------------
-
-Kangaroo::~Kangaroo() {
 }
 
 // ----------------------------------------------------------------------------
@@ -301,93 +311,65 @@ bool Kangaroo::CollisionCheck(Int* d1,uint32_t type1,Int* d2,uint32_t type2) {
 
 bool Kangaroo::AddToTable(Int *pos,Int *dist,uint32_t kType) {
 
-  // 检查是否需要使用512-bit哈希表
-  if(use512BitHashTable) {
-    return AddToTable512(pos, dist, kType);
-  }
-
   int addStatus = hashTable.Add(pos,dist,kType);
-  if(addStatus== ADD_COLLISION)
+  if(addStatus == ADD_COLLISION)
     return CollisionCheck(&hashTable.kDist,hashTable.kType,dist,kType);
+
+  if(addStatus == ADD_OVERFLOW) {
+    // Hash table is full, log warning but continue
+    // Thread-safe static variables with atomic operations
+    static volatile uint32_t overflowWarnings = 0;
+    static volatile uint32_t lastWarningTime = 0;
+
+    // Atomic increment for thread safety
+    uint32_t currentWarnings;
+#ifdef WIN64
+    currentWarnings = InterlockedIncrement((LONG*)&overflowWarnings);
+#else
+    currentWarnings = __sync_add_and_fetch(&overflowWarnings, 1);
+#endif
+
+    uint32_t currentTime = (uint32_t)time(NULL);
+    uint32_t lastTime = lastWarningTime;
+
+    if(currentWarnings % 1000 == 1 || (currentTime - lastTime > 60)) {
+      // Use atomic compare-and-swap to update lastWarningTime safely
+#ifdef WIN64
+      InterlockedCompareExchange((LONG*)&lastWarningTime, currentTime, lastTime);
+#else
+      __sync_bool_compare_and_swap(&lastWarningTime, lastTime, currentTime);
+#endif
+
+      ::printf("\n[!] CRITICAL: Hash table overflow (warning #%u)\n", currentWarnings);
+      ::printf("[*] IMMEDIATE ACTIONS NEEDED:\n");
+      ::printf("   1. STOP and restart with: -d %d (increase DP size)\n", initDPSize + 1);
+      ::printf("   2. OR reduce GPU threads: -g <smaller_value>\n");
+      ::printf("   3. Current table: %s (FULL!)\n", hashTable.GetSizeInfo().c_str());
+      ::printf("   4. Performance degraded: %u kangaroos dead\n", currentWarnings);
+      ::printf("[!] Algorithm efficiency severely compromised!\n\n");
+    }
+    return false; // Treat as failed addition
+  }
 
   return addStatus == ADD_OK;
 
 }
 
-bool Kangaroo::AddToTable512(Int *pos, Int *dist, uint32_t kType) {
-
-  // 转换Int到512-bit格式
-  int512_t x512, d512;
-  memset(&x512, 0, sizeof(x512));
-  memset(&d512, 0, sizeof(d512));
-
-  // 复制位置数据 (最多8个64位字)
-  for(int i = 0; i < min(8, NB64BLOCK); i++) {
-    x512.i64[i] = pos->bits64[i];
-  }
-
-  // 复制距离数据并设置类型标志
-  for(int i = 0; i < min(8, NB64BLOCK); i++) {
-    d512.i64[i] = dist->bits64[i];
-  }
-
-  // 设置512-bit距离字段的标志位
-  // b511=sign b510=kangaroo type, b509..b0 distance
-  if(kType != 0) {
-    d512.i64[7] |= 0x4000000000000000ULL; // 设置类型位
-  }
-  if(dist->IsNegative()) {
-    d512.i64[7] |= 0x8000000000000000ULL; // 设置符号位
-  }
-
-  uint64_t h = HashTable512::Hash512(&x512);
-
-  // 查找碰撞
-  ENTRY512* collision = hashTable512.FindCollision(h, &x512, &d512, kType);
-  if(collision) {
-    // 发现碰撞！
-    Int collisionDist;
-    uint32_t collisionType;
-    hashTable512.CalcDistAndType512(collision->d, &collisionDist, &collisionType);
-
-    printf("[512-bit COLLISION] Found collision with %d-bit distance!\n", collisionDist.GetBitLength());
-    return CollisionCheck(&collisionDist, collisionType, dist, kType);
-  }
-
-  // 添加到512-bit哈希表
-  int addStatus = hashTable512.Add(h, &x512, &d512);
-  return addStatus == ADD512_OK;
-}
-
 bool Kangaroo::AddToTable(uint64_t h,int128_t *x,int128_t *d) {
 
-  // 检查是否需要使用512-bit哈希表
-  if(use512BitHashTable) {
-    // 转换128-bit到512-bit格式
-    Int pos, dist;
-    pos.SetInt32(0);
-    dist.SetInt32(0);
-
-    // 复制128-bit数据到Int
-    pos.bits64[0] = ((uint64_t*)x)[0];
-    pos.bits64[1] = ((uint64_t*)x)[1];
-    dist.bits64[0] = ((uint64_t*)d)[0];
-    dist.bits64[1] = ((uint64_t*)d)[1];
-
-    uint32_t kType;
-    HashTable::CalcDistAndType(*d, &dist, &kType);
-
-    return AddToTable512(&pos, &dist, kType);
-  }
-
   int addStatus = hashTable.Add(h,x,d);
-  if(addStatus== ADD_COLLISION) {
+  if(addStatus == ADD_COLLISION) {
 
     Int dist;
     uint32_t kType;
     HashTable::CalcDistAndType(*d,&dist,&kType);
     return CollisionCheck(&hashTable.kDist,hashTable.kType,&dist,kType);
 
+  }
+
+  if(addStatus == ADD_OVERFLOW) {
+    // Hash table is full, treat as failed addition
+    return false;
   }
 
   return addStatus == ADD_OK;
@@ -526,16 +508,16 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
       for(int g = 0; g < CPU_GRP_SIZE && !endOfSearch; g++) {
 
         if(IsDP(ph->px[g].bits64[3])) {
-          // 🛡️ FIXED: 扩大临界区，避免竞态条件
           LOCK(ghMutex);
-          // 在锁内再次检查endOfSearch，确保一致性
           if(!endOfSearch) {
+
             if(!AddToTable(&ph->px[g],&ph->distance[g],g % 2)) {
               // Collision inside the same herd
               // We need to reset the kangaroo
               CreateHerd(1,&ph->px[g],&ph->py[g],&ph->distance[g],g % 2,false);
               collisionInSameHerd++;
             }
+
           }
           UNLOCK(ghMutex);
         }
@@ -585,7 +567,32 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
   vector<ITEM> gpuFound;
   GPUEngine *gpu;
 
-  gpu = new GPUEngine(ph->gridSizeX,ph->gridSizeY,ph->gpuId,65536 * 2);
+  // Calculate dynamic buffer size based on GPU threads and DP probability
+  uint32_t totalGPUThreads = ph->gridSizeX * ph->gridSizeY;
+  uint32_t dpProbability = 1ULL << initDPSize;  // 2^dpSize
+
+  // Estimate max distinguished points per kernel call
+  // For small DP values, threads generate many DPs, need larger buffer
+  uint32_t estimatedMaxDP = (totalGPUThreads * 8) / dpProbability;  // Increased multiplier
+
+  // For very small DP values (< 10), use thread-based minimum
+  uint32_t threadBasedMin = totalGPUThreads / 4;  // At least threads/4 buffer size
+  uint32_t absoluteMin = 131072U;  // Minimum 128K items for small DP values
+
+  // Add safety margin (4x for small DP) and ensure adequate buffer size
+  uint32_t dynamicMaxFound = estimatedMaxDP * 4;
+  if(dynamicMaxFound < threadBasedMin) dynamicMaxFound = threadBasedMin;
+  if(dynamicMaxFound < absoluteMin) dynamicMaxFound = absoluteMin;
+
+  // Cap maximum buffer size to prevent excessive memory usage
+  dynamicMaxFound = (dynamicMaxFound < 2097152U) ? dynamicMaxFound : 2097152U; // Max 2M items
+
+  if(keyIdx == 0) {
+    ::printf("GPU Buffer: %u items (threads=%u, dp=2^%d)\n",
+             dynamicMaxFound, totalGPUThreads, initDPSize);
+  }
+
+  gpu = new GPUEngine(ph->gridSizeX,ph->gridSizeY,ph->gpuId,dynamicMaxFound);
 
   if(keyIdx == 0)
     ::printf("GPU: %s (%.1f MB used)\n",gpu->deviceName.c_str(),gpu->GetMemory() / 1048576.0);
@@ -596,25 +603,11 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
   if( ph->px==NULL ) {
     if(keyIdx == 0)
       ::printf("SolveKeyGPU Thread GPU#%d: creating kangaroos...\n",ph->gpuId);
-
-    // 🛡️ FIXED: 使用安全的内存分配，添加异常处理
+    // Create Kangaroos, if not already loaded
     uint64_t nbThread = gpu->GetNbThread();
-
-    // 使用安全分配函数
-    ph->px = KangarooUtils::safe_alloc<Int>(ph->nbKangaroo, "GPU kangaroo px");
-    ph->py = KangarooUtils::safe_alloc<Int>(ph->nbKangaroo, "GPU kangaroo py");
-    ph->distance = KangarooUtils::safe_alloc<Int>(ph->nbKangaroo, "GPU kangaroo distance");
-
-    // 检查分配是否成功
-    if (!ph->px || !ph->py || !ph->distance) {
-      // 清理已分配的内存
-      safe_delete_array(ph->px);
-      safe_delete_array(ph->py);
-      safe_delete_array(ph->distance);
-      delete gpu;
-      ::printf("[ERROR] Failed to allocate GPU kangaroo memory\n");
-      return;
-    }
+    ph->px = new Int[ph->nbKangaroo];
+    ph->py = new Int[ph->nbKangaroo];
+    ph->distance = new Int[ph->nbKangaroo];
 
     for(uint64_t i = 0; i<nbThread; i++) {
       CreateHerd(GPU_GRP_SIZE,&(ph->px[i*GPU_GRP_SIZE]),
@@ -650,22 +643,8 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
 
   while(!endOfSearch) {
 
-    // 🔧 修复CPU 100%占用：记录GPU启动时间
-    double gpu_start_time = Timer::get_tick();
-
     gpu->Launch(gpuFound);
     counters[thId] += ph->nbKangaroo * NB_RUN;
-
-    // 🔧 修复CPU 100%占用：确保GPU有足够的执行时间
-    double gpu_end_time = Timer::get_tick();
-    double gpu_execution_time = gpu_end_time - gpu_start_time;
-
-    // 如果GPU执行时间过短（<0.001ms），说明可能有问题，添加延迟
-    if(gpu_execution_time < 0.000001) {  // 调高阈值到0.001ms
-      printf("GPUEngine: Warning - GPU execution too fast (%.6fms), adding delay\n",
-             gpu_execution_time * 1000);
-      Timer::SleepMillis(10); // 添加10ms延迟，避免CPU 100%
-    }
 
     if( clientMode ) {
 
@@ -686,7 +665,7 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
 
         LOCK(ghMutex);
 
-        for(int g = 0; !endOfSearch && g < gpuFound.size(); g++) {
+        for(int g = 0; !endOfSearch && g < (int)gpuFound.size(); g++) {
 
           uint32_t kType = (uint32_t)(gpuFound[g].kIdx % 2);
 
@@ -774,7 +753,7 @@ void Kangaroo::CreateHerd(int nbKangaroo,Int *px,Int *py,Int *d,int firstType,bo
   // Choose random starting distance
   if(lock) LOCK(ghMutex);
 
-  for(uint64_t j = 0; j<nbKangaroo; j++) {
+  for(uint64_t j = 0; j<(uint64_t)nbKangaroo; j++) {
 
 #ifdef USE_SYMMETRY
 
@@ -805,7 +784,7 @@ void Kangaroo::CreateHerd(int nbKangaroo,Int *px,Int *py,Int *d,int firstType,bo
   // Compute starting pos
   S = secp->ComputePublicKeys(pk);
 
-  for(uint64_t j = 0; j<nbKangaroo; j++) {
+  for(uint64_t j = 0; j<(uint64_t)nbKangaroo; j++) {
     if((j + firstType) % 2 == TAME) {
       Sp.push_back(Z);
     } else {
@@ -815,7 +794,7 @@ void Kangaroo::CreateHerd(int nbKangaroo,Int *px,Int *py,Int *d,int firstType,bo
 
   S = secp->AddDirect(Sp,S);
 
-  for(uint64_t j = 0; j<nbKangaroo; j++) {
+  for(uint64_t j = 0; j<(uint64_t)nbKangaroo; j++) {
 
     px[j].Set(&S[j].x);
     py[j].Set(&S[j].y);
@@ -954,11 +933,25 @@ void Kangaroo::ComputeExpected(double dp,double *op,double *ram,double *overHead
   // DP Overhead
   *op = Z0 * pow(N * (k * theta + sqrt(N)),1.0 / 3.0);
 
-  *ram = (double)sizeof(HASH_ENTRY) * (double)HASH_SIZE + // Table
-         (double)sizeof(ENTRY *) * (double)(HASH_SIZE * 4) + // Allocation overhead
-         (double)(sizeof(ENTRY) + sizeof(ENTRY *)) * (*op / theta); // Entries
+  // Calculate memory more carefully to avoid overflow
+  double expectedEntries = *op / theta;
 
+  // Limit expected entries to prevent overflow
+  if(expectedEntries > MAX_TOTAL_ITEMS) {
+    expectedEntries = MAX_TOTAL_ITEMS;
+  }
+
+  double tableMemory = (double)sizeof(HASH_ENTRY) * (double)HASH_SIZE;
+  double allocationOverhead = (double)sizeof(ENTRY *) * (double)(HASH_SIZE * 4);
+  double entriesMemory = (double)(sizeof(ENTRY) + sizeof(ENTRY *)) * expectedEntries;
+
+  *ram = tableMemory + allocationOverhead + entriesMemory;
   *ram /= (1024.0*1024.0);
+
+  // Additional safety check for reasonable values
+  if(*ram > 100000.0) { // More than 100GB seems unreasonable
+    *ram = 100000.0;
+  }
 
   if(overHead)
     *overHead = *op/avgDP0;
@@ -973,28 +966,6 @@ void Kangaroo::InitRange() {
   rangeWidth.Sub(&rangeStart);
   rangePower = rangeWidth.GetBitLength();
   ::printf("Range width: 2^%d\n",rangePower);
-
-  // 🎯 125-bit限制突破检测
-  if(rangePower > 125) {
-    use512BitHashTable = true;
-    ::printf("🚀 [125-bit BREAKTHROUGH] Range exceeds 125-bit limit!\n");
-    ::printf("   - Range power: %d bits (limit: 125 bits)\n", rangePower);
-    ::printf("   - Switching to 512-bit hash table\n");
-    ::printf("   - Maximum distance: 509 bits (vs original 125 bits)\n");
-    ::printf("   - Capacity increase: %dx\n", 1 << min(30, 509 - 125));
-
-    // 验证512-bit哈希表功能
-    if(hashTable512.VerifyLimitBreakthrough()) {
-      ::printf("   ✅ 512-bit hash table verification successful\n");
-    } else {
-      ::printf("   ❌ 512-bit hash table verification failed\n");
-      use512BitHashTable = false; // 回退到128-bit
-    }
-  } else {
-    use512BitHashTable = false;
-    ::printf("📊 [STANDARD MODE] Using 128-bit hash table (range: %d bits)\n", rangePower);
-  }
-
   rangeWidthDiv2.Set(&rangeWidth);
   rangeWidthDiv2.ShiftR(1);
   rangeWidthDiv4.Set(&rangeWidthDiv2);
@@ -1105,6 +1076,10 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
     if(initDPSize < 0)
       initDPSize = suggestedDP;
 
+    // Ensure minimum DP size of 1 to avoid dpMask=0 performance issues
+    if(initDPSize <= 0)
+      initDPSize = 1;
+
     ComputeExpected((double)initDPSize,&expectedNbOp,&expectedMem);
     if(nbLoadedWalk == 0) ::printf("Suggested DP: %d\n",suggestedDP);
     ::printf("Expected operations: 2^%.2f\n",log2(expectedNbOp));
@@ -1196,109 +1171,5 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
   ::printf("\nDone: Total time %s \n" , GetTimeStr(t1-t0+offsetTime).c_str());
 
 }
-
-// ----------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------
-
-
-
-// ----------------------------------------------------------------------------
-
-
-
-// ----------------------------------------------------------------------------
-
-void Kangaroo::BernsteinGeneralTest(int l_bits, int t_bits, int w_bits, const std::string& configFile) {
-
-  ::printf("=== Bernstein算法科学测试 ===\n");
-  ::printf("参数: l=2^%d, T=2^%d, W=2^%d\n", l_bits, t_bits, w_bits);
-
-  // 计算理论复杂度和加速比
-  double l = pow(2.0, l_bits);
-  double T = pow(2.0, t_bits);
-
-  double standard_complexity = 2.0 * sqrt(l);
-  double bernstein_complexity = 1.93 * sqrt(l / T);
-  double theoretical_speedup = standard_complexity / bernstein_complexity;
-
-  ::printf("\n=== 理论分析 ===\n");
-  ::printf("搜索空间大小: 2^%d\n", l_bits);
-  ::printf("预计算表大小: 2^%d = %.0f 条目\n", t_bits, T);
-  ::printf("标准Kangaroo复杂度: 2 * sqrt(l) = %.0f 次点乘\n", standard_complexity);
-  ::printf("Bernstein复杂度: 1.93 * sqrt(l/T) = %.0f 次点乘\n", bernstein_complexity);
-  ::printf("理论加速比: %.1fx\n", theoretical_speedup);
-
-  // 检查是否有配置文件
-  if(configFile.empty()) {
-    ::printf("\n⚠️  注意: 请使用配置文件指定测试目标\n");
-    ::printf("示例: kangaroo.exe -test %d %d %d test_puzzle25.txt\n", l_bits, t_bits, w_bits);
-    ::printf("配置文件格式:\n");
-    ::printf("  第一行: 搜索范围开始 (十六进制)\n");
-    ::printf("  第二行: 搜索范围结束 (十六进制)\n");
-    ::printf("  第三行: 目标公钥 (压缩格式)\n");
-    ::printf("\n🔬 科学测试完成\n");
-    return;
-  }
-
-  // 解析配置文件
-  std::string configFileCopy = configFile;
-  if(!ParseConfigFile(configFileCopy)) {
-    ::printf("❌ 配置文件解析失败: %s\n", configFile.c_str());
-    return;
-  }
-
-  ::printf("\n=== 测试设置 ===\n");
-  ::printf("配置文件: %s\n", configFile.c_str());
-  ::printf("搜索范围: %s:%s\n", rangeStart.GetBase16().c_str(), rangeEnd.GetBase16().c_str());
-  ::printf("目标公钥: %s\n", keysToSearch[0].x.GetBase16().c_str());
-
-  // 使用BernsteinTable类进行测试
-  ::printf("\n=== 使用BernsteinTable类进行测试 ===\n");
-
-  // 创建BernsteinTable实例
-  BernsteinTable table(secp);
-
-  // 生成预计算表 - 使用正确的l_bits参数
-  string temp_filename = "temp_test_table.dat";
-  if(!table.GenerateTable(t_bits, w_bits, l_bits, temp_filename)) {
-    ::printf("❌ 预计算表生成失败!\n");
-    return;
-  }
-
-  // 加载预计算表
-  if(!table.LoadTable(temp_filename)) {
-    ::printf("❌ 预计算表加载失败!\n");
-    return;
-  }
-
-  // 进行查找测试
-  Int result_log;
-  if(table.LookupPoint(keysToSearch[0], result_log)) {
-    ::printf("🎉 成功找到私钥: %s\n", result_log.GetBase16().c_str());
-
-    // 验证结果
-    Point computed_public = secp->ComputePublicKey(&result_log);
-    if(computed_public.x.IsEqual(&keysToSearch[0].x)) {
-      ::printf("✅ 私钥匹配正确! Bernstein算法验证成功!\n");
-    } else {
-      ::printf("❌ 私钥不匹配! 算法有误!\n");
-    }
-  } else {
-    ::printf("❌ 未能找到私钥\n");
-  }
-
-  ::printf("\n🔬 科学测试完成\n");
-}
-
-// ----------------------------------------------------------------------------
-
-// ----------------------------------------------------------------------------
-
-
-
-
-
-
 
 

@@ -8,8 +8,8 @@ ifdef gpu
 SRC = SECPK1/IntGroup.cpp main.cpp SECPK1/Random.cpp \
       Timer.cpp SECPK1/Int.cpp SECPK1/IntMod.cpp \
       SECPK1/Point.cpp SECPK1/SECP256K1.cpp \
-      GPU/GPUEngine.o Kangaroo.cpp HashTable.cpp HashTable512.cpp \
-      KangarooUtils.cpp Backup.cpp Thread.cpp Check.cpp Network.cpp Merge.cpp PartMerge.cpp
+      GPU/GPUEngine.o Kangaroo.cpp HashTable.cpp \
+      Backup.cpp Thread.cpp Check.cpp Network.cpp Merge.cpp PartMerge.cpp
 
 OBJDIR = obj
 
@@ -17,16 +17,15 @@ OBJET = $(addprefix $(OBJDIR)/, \
       SECPK1/IntGroup.o main.o SECPK1/Random.o \
       Timer.o SECPK1/Int.o SECPK1/IntMod.o \
       SECPK1/Point.o SECPK1/SECP256K1.o \
-      GPU/GPUEngine.o Kangaroo.o HashTable.o HashTable512.o \
-      KangarooUtils.o Thread.o Backup.o Check.o Network.o Merge.o PartMerge.o)
+      GPU/GPUEngine.o Kangaroo.o HashTable.o Thread.o \
+      Backup.o Check.o Network.o Merge.o PartMerge.o)
 
 else
 
 SRC = SECPK1/IntGroup.cpp main.cpp SECPK1/Random.cpp \
       Timer.cpp SECPK1/Int.cpp SECPK1/IntMod.cpp \
       SECPK1/Point.cpp SECPK1/SECP256K1.cpp \
-      Kangaroo.cpp HashTable.cpp HashTable512.cpp \
-      KangarooUtils.cpp Thread.cpp Check.cpp \
+      Kangaroo.cpp HashTable.cpp Thread.cpp Check.cpp \
       Backup.cpp Network.cpp Merge.cpp PartMerge.cpp
 
 OBJDIR = obj
@@ -41,8 +40,9 @@ OBJET = $(addprefix $(OBJDIR)/, \
 endif
 
 CXX        = g++
-CUDA       = /usr/local/cuda-8.0
-CXXCUDA    = /usr/bin/g++-4.8
+# Auto-detect CUDA installation
+CUDA       = $(shell if [ -d "/usr/local/cuda" ]; then echo "/usr/local/cuda"; elif [ -d "/usr/local/cuda-12.0" ]; then echo "/usr/local/cuda-12.0"; elif [ -d "/usr/local/cuda-11.0" ]; then echo "/usr/local/cuda-11.0"; else echo "/usr/local/cuda-8.0"; fi)
+CXXCUDA    = g++
 NVCC       = $(CUDA)/bin/nvcc
 
 ifdef gpu

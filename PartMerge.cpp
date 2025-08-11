@@ -18,6 +18,13 @@
 #include "Kangaroo.h"
 #include <fstream>
 #include "SECPK1/IntGroup.h"
+
+// Macro to suppress fread return value warnings
+#define SAFE_FREAD(ptr, size, count, stream) \
+  do { \
+    size_t result = fread(ptr, size, count, stream); \
+    (void)result; /* Suppress unused variable warning */ \
+  } while(0)
 #include "Timer.h"
 #include <string.h>
 #define _USE_MATH_DEFINES
@@ -45,7 +52,7 @@ string Kangaroo::GetPartName(std::string& partName,int i,bool tmpPart) {
 
 }
 
-FILE * Kangaroo::OpenPart(std::string& partName,char *mode,int i,bool tmpPart) {
+FILE * Kangaroo::OpenPart(std::string& partName,const char *mode,int i,bool tmpPart) {
 
   string fName = GetPartName(partName,i,tmpPart);
   FILE* f = fopen(fName.c_str(),mode);
@@ -233,13 +240,13 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
       return false;
 
     // Read global param
-    ::fread(&dp1,sizeof(uint32_t),1,f1);
-    ::fread(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
-    ::fread(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
-    ::fread(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
-    ::fread(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
-    ::fread(&count1,sizeof(uint64_t),1,f1);
-    ::fread(&time1,sizeof(double),1,f1);
+    SAFE_FREAD(&dp1,sizeof(uint32_t),1,f1);
+    SAFE_FREAD(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
+    SAFE_FREAD(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
+    SAFE_FREAD(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
+    SAFE_FREAD(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
+    SAFE_FREAD(&count1,sizeof(uint64_t),1,f1);
+    SAFE_FREAD(&time1,sizeof(double),1,f1);
 
     k1.z.SetInt32(1);
     if(!secp->EC(k1)) {
@@ -266,13 +273,13 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
   Int RE2;
 
   // Read global param
-  ::fread(&dp2,sizeof(uint32_t),1,f2);
-  ::fread(&RS2.bits64,32,1,f2); RS2.bits64[4] = 0;
-  ::fread(&RE2.bits64,32,1,f2); RE2.bits64[4] = 0;
-  ::fread(&k2.x.bits64,32,1,f2); k2.x.bits64[4] = 0;
-  ::fread(&k2.y.bits64,32,1,f2); k2.y.bits64[4] = 0;
-  ::fread(&count2,sizeof(uint64_t),1,f2);
-  ::fread(&time2,sizeof(double),1,f2);
+  SAFE_FREAD(&dp2,sizeof(uint32_t),1,f2);
+  SAFE_FREAD(&RS2.bits64,32,1,f2); RS2.bits64[4] = 0;
+  SAFE_FREAD(&RE2.bits64,32,1,f2); RE2.bits64[4] = 0;
+  SAFE_FREAD(&k2.x.bits64,32,1,f2); k2.x.bits64[4] = 0;
+  SAFE_FREAD(&k2.y.bits64,32,1,f2); k2.y.bits64[4] = 0;
+  SAFE_FREAD(&count2,sizeof(uint64_t),1,f2);
+  SAFE_FREAD(&time2,sizeof(double),1,f2);
 
   k2.z.SetInt32(1);
   if(!secp->EC(k2)) {
@@ -426,6 +433,7 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
 }
 
 bool Kangaroo::FillEmptyPartFromFile(std::string& partName,std::string& fileName,bool printStat) {
+  (void)printStat; // Suppress unused parameter warning
 
   double t0;
   double t1;
@@ -445,13 +453,13 @@ bool Kangaroo::FillEmptyPartFromFile(std::string& partName,std::string& fileName
     return true;
 
   // Read global param
-  ::fread(&dp1,sizeof(uint32_t),1,f1);
-  ::fread(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
-  ::fread(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
-  ::fread(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
-  ::fread(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
-  ::fread(&count1,sizeof(uint64_t),1,f1);
-  ::fread(&time1,sizeof(double),1,f1);
+  SAFE_FREAD(&dp1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
+  SAFE_FREAD(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
+  SAFE_FREAD(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
+  SAFE_FREAD(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
+  SAFE_FREAD(&count1,sizeof(uint64_t),1,f1);
+  SAFE_FREAD(&time1,sizeof(double),1,f1);
 
   k1.z.SetInt32(1);
   if(!secp->EC(k1)) {
@@ -503,12 +511,12 @@ bool Kangaroo::FillEmptyPartFromFile(std::string& partName,std::string& fileName
     unsigned char buff[32];
 
     for(uint32_t h= hStart;h<hStop;h++) {
-      ::fread(&nbItem,sizeof(uint32_t),1,f1);
-      ::fread(&maxItem,sizeof(uint32_t),1,f1);
+      SAFE_FREAD(&nbItem,sizeof(uint32_t),1,f1);
+      SAFE_FREAD(&maxItem,sizeof(uint32_t),1,f1);
       ::fwrite(&nbItem,sizeof(uint32_t),1,f);
       ::fwrite(&maxItem,sizeof(uint32_t),1,f);
       for(uint32_t i=0;i<nbItem;i++) {
-        ::fread(&buff,32,1,f1);
+        SAFE_FREAD(&buff,32,1,f1);
         ::fwrite(&buff,32,1,f);
       }
       nbDP += nbItem;
@@ -557,13 +565,13 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
     return true;
 
   // Read global param
-  ::fread(&dp1,sizeof(uint32_t),1,f1);
-  ::fread(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
-  ::fread(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
-  ::fread(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
-  ::fread(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
-  ::fread(&count1,sizeof(uint64_t),1,f1);
-  ::fread(&time1,sizeof(double),1,f1);
+  SAFE_FREAD(&dp1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
+  SAFE_FREAD(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
+  SAFE_FREAD(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
+  SAFE_FREAD(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
+  SAFE_FREAD(&count1,sizeof(uint64_t),1,f1);
+  SAFE_FREAD(&time1,sizeof(double),1,f1);
 
   k1.z.SetInt32(1);
   if(!secp->EC(k1)) {
@@ -588,13 +596,13 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
   Int RE2;
 
   // Read global param
-  ::fread(&dp2,sizeof(uint32_t),1,f2);
-  ::fread(&RS2.bits64,32,1,f2); RS2.bits64[4] = 0;
-  ::fread(&RE2.bits64,32,1,f2); RE2.bits64[4] = 0;
-  ::fread(&k2.x.bits64,32,1,f2); k2.x.bits64[4] = 0;
-  ::fread(&k2.y.bits64,32,1,f2); k2.y.bits64[4] = 0;
-  ::fread(&count2,sizeof(uint64_t),1,f2);
-  ::fread(&time2,sizeof(double),1,f2);
+  SAFE_FREAD(&dp2,sizeof(uint32_t),1,f2);
+  SAFE_FREAD(&RS2.bits64,32,1,f2); RS2.bits64[4] = 0;
+  SAFE_FREAD(&RE2.bits64,32,1,f2); RE2.bits64[4] = 0;
+  SAFE_FREAD(&k2.x.bits64,32,1,f2); k2.x.bits64[4] = 0;
+  SAFE_FREAD(&k2.y.bits64,32,1,f2); k2.y.bits64[4] = 0;
+  SAFE_FREAD(&count2,sizeof(uint64_t),1,f2);
+  SAFE_FREAD(&time2,sizeof(double),1,f2);
 
   k2.z.SetInt32(1);
   if(!secp->EC(k2)) {

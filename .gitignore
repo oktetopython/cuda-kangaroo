@@ -1,14 +1,35 @@
-.vs/
-Kangaroo.vcxproj.user
-Kangaroo.vcxproj.user
-Kangaroo.vcxproj.user
-Kangaroo.VC.opendb
-Kangaroo.sdf
-vc140.pdb
+# Build artifacts
+build/
+build_test/
+results/
 x64/
 obj/
-.idea/
-CMakeLists.txt
-kangaroo
 cmake-build-debug/
+*.exe
+*.out
+*.so
+*.dll
+*.lib
+*.a
+*.pdb
+*.sdf
+*.opendb
 *.prf
+kangaroo
+
+# Visual Studio & Rider specific
+.vs/
+*.vcxproj.user
+
+# JetBrains IDE specific
+.idea/
+
+# Log and report files
+*.log
+*.txt
+report.xml
+
+# Archives and backups - To be handled by Git versioning
+archive/
+archive_perfect_baseline_20250109/
+backup_/

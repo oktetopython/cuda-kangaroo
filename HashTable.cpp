@@ -15,15 +15,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-// ============================================================================
-// 🧹 CLEANED: 使用统一头文件，消除重复包含
-// ============================================================================
-#include "KangarooCommon.h"
 #include "HashTable.h"
 #include <stdio.h>
 #include <math.h>
+#ifndef WIN64
+#include <string.h>
+#endif
 
 #define GET(hash,id) E[hash].items[id]
+#define SAFE_FREAD(ptr, size, count, stream) \
+  do { \
+    size_t result = fread(ptr, size, count, stream); \
+    (void)result; /* Suppress unused variable warning */ \
+  } while(0)
 
 HashTable::HashTable() {
 
@@ -101,10 +105,11 @@ void HashTable::Convert(Int *x,Int *d,uint32_t type,uint64_t *h,int128_t *X,int1
 }
 
 
-#define AV1() if(pnb1) { ::fread(&e1,32,1,f1); pnb1--; }
-#define AV2() if(pnb2) { ::fread(&e2,32,1,f2); pnb2--; }
+#define AV1() if(pnb1) { SAFE_FREAD(&e1,32,1,f1); pnb1--; }
+#define AV2() if(pnb2) { SAFE_FREAD(&e2,32,1,f2); pnb2--; }
 
 int HashTable::MergeH(uint32_t h,FILE* f1,FILE* f2,FILE* fd,uint32_t* nbDP,uint32_t *duplicate,Int* d1,uint32_t* k1,Int* d2,uint32_t* k2) {
+  (void)h; // Suppress unused parameter warning
 
   // Merge by line
   // N comparison but avoid slow item allocation
@@ -117,10 +122,10 @@ int HashTable::MergeH(uint32_t h,FILE* f1,FILE* f2,FILE* fd,uint32_t* nbDP,uint3
   *duplicate = 0;
   *nbDP = 0;
 
-  ::fread(&nb1,sizeof(uint32_t),1,f1);
-  ::fread(&m1,sizeof(uint32_t),1,f1);
-  ::fread(&nb2,sizeof(uint32_t),1,f2);
-  ::fread(&m2,sizeof(uint32_t),1,f2);
+  SAFE_FREAD(&nb1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&m1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&nb2,sizeof(uint32_t),1,f2);
+  SAFE_FREAD(&m2,sizeof(uint32_t),1,f2);
 
   // Maximum in destination
   uint32_t nbd = 0;
@@ -231,26 +236,31 @@ int HashTable::Add(Int *x,Int *d,uint32_t type) {
 }
 
 void HashTable::ReAllocate(uint64_t h,uint32_t add) {
-  // 🛡️ FIXED: 使用安全的内存重分配，避免中间状态风险
 
-  uint32_t old_max = E[h].maxItem;
-  uint32_t new_max = old_max + add;
+  uint32_t newMaxItem = E[h].maxItem + add;
+  ENTRY** nitems = (ENTRY**)malloc(sizeof(ENTRY*) * newMaxItem);
 
-  // 使用realloc更安全
-  ENTRY** new_items = (ENTRY**)KangarooUtils::safe_realloc(
-    E[h].items,
-    sizeof(ENTRY*) * old_max,
-    sizeof(ENTRY*) * new_max,
-    "HashTable::ReAllocate"
-  );
-
-  if (!new_items) {
-    ::printf("[ERROR] HashTable::ReAllocate failed for hash %llu\n", h);
-    return; // 保持原状态，不修改maxItem
+  // Check if malloc succeeded
+  if(nitems == NULL) {
+    ::printf("Error: Failed to reallocate hash table memory for bucket %lu\n", (unsigned long)h);
+    return; // Keep original data intact
   }
 
-  E[h].items = new_items;
-  E[h].maxItem = new_max;
+  // Copy existing data to new memory
+  if(E[h].items && E[h].nbItem > 0) {
+    memcpy(nitems, E[h].items, sizeof(ENTRY*) * E[h].nbItem);
+  }
+
+  // Initialize new slots to NULL
+  for(uint32_t i = E[h].nbItem; i < newMaxItem; i++) {
+    nitems[i] = NULL;
+  }
+
+  // Free old memory and update pointers
+  free(E[h].items);
+  E[h].items = nitems;
+  E[h].maxItem = newMaxItem;
+
 }
 
 int HashTable::Add(uint64_t h,int128_t *x,int128_t *d) {
@@ -278,6 +288,12 @@ int HashTable::Add(uint64_t h,ENTRY* e) {
   if(E[h].maxItem == 0) {
     E[h].maxItem = 16;
     E[h].items = (ENTRY **)malloc(sizeof(ENTRY *) * E[h].maxItem);
+    if(E[h].items == NULL) {
+      ::printf("Error: Failed to allocate hash table memory for bucket %lu\n", (unsigned long)h);
+      if(e) free(e);
+      return ADD_OK; // 返回ADD_OK避免程序崩溃，但记录错误
+    }
+    memset(E[h].items, 0, sizeof(ENTRY *) * E[h].maxItem);
   }
 
   if(E[h].nbItem == 0) {
@@ -287,6 +303,11 @@ int HashTable::Add(uint64_t h,ENTRY* e) {
   }
 
   if(E[h].nbItem >= E[h].maxItem - 1) {
+    // Check if we can reallocate within limits
+    if(E[h].maxItem + 4 > MAX_ITEMS_PER_BUCKET) {
+      free(e); // Free the entry to prevent memory leak
+      return ADD_OVERFLOW;
+    }
     // We need to reallocate
     ReAllocate(h,4);
   }
@@ -339,7 +360,7 @@ int HashTable::compare(int128_t *i1,int128_t *i2) {
 
 std::string HashTable::GetSizeInfo() {
 
-  char *unit;
+  const char *unit;
   uint64_t totalByte = sizeof(E);
   uint64_t usedByte = HASH_SIZE*2*sizeof(uint32_t);
 
@@ -390,21 +411,49 @@ void HashTable::SaveTable(FILE* f,uint32_t from,uint32_t to,bool printPoint) {
 
   uint64_t point = GetNbItem() / 16;
   uint64_t pointPrint = 0;
+  uint64_t totalSaved = 0;
+  uint64_t emptyBuckets = 0;
 
+  // Write optimized format header
+  uint32_t formatVersion = 2; // New optimized format
+  fwrite(&formatVersion,sizeof(uint32_t),1,f);
+
+  // Count non-empty buckets first
+  uint32_t nonEmptyBuckets = 0;
   for(uint32_t h = from; h < to; h++) {
-    fwrite(&E[h].nbItem,sizeof(uint32_t),1,f);
-    fwrite(&E[h].maxItem,sizeof(uint32_t),1,f);
-    for(uint32_t i = 0; i < E[h].nbItem; i++) {
-      fwrite(&(E[h].items[i]->x),16,1,f);
-      fwrite(&(E[h].items[i]->d),16,1,f);
-      if(printPoint) {
-        pointPrint++;
-        if(pointPrint > point) {
-          ::printf(".");
-          pointPrint = 0;
+    if(E[h].nbItem > 0) nonEmptyBuckets++;
+  }
+  fwrite(&nonEmptyBuckets,sizeof(uint32_t),1,f);
+
+  // Save only non-empty buckets
+  for(uint32_t h = from; h < to; h++) {
+    if(E[h].nbItem > 0) {
+      // Write bucket index and item count
+      fwrite(&h,sizeof(uint32_t),1,f);
+      fwrite(&E[h].nbItem,sizeof(uint32_t),1,f);
+
+      // Write only the actual data (no maxItem needed)
+      for(uint32_t i = 0; i < E[h].nbItem; i++) {
+        fwrite(&(E[h].items[i]->x),16,1,f);
+        fwrite(&(E[h].items[i]->d),16,1,f);
+        totalSaved++;
+        if(printPoint) {
+          pointPrint++;
+          if(pointPrint > point) {
+            ::printf(".");
+            pointPrint = 0;
+          }
         }
       }
+    } else {
+      emptyBuckets++;
     }
+  }
+
+  if(printPoint && from == 0) {
+    ::printf("\n💾 Saved %llu items, skipped %llu empty buckets (%.1f%% compression)\n",
+             (unsigned long long)totalSaved, (unsigned long long)emptyBuckets,
+             100.0 * emptyBuckets / (emptyBuckets + nonEmptyBuckets));
   }
 
 }
@@ -436,8 +485,8 @@ void HashTable::SeekNbItem(FILE* f,uint32_t from,uint32_t to) {
 
   for(uint32_t h = from; h < to; h++) {
 
-    fread(&E[h].nbItem,sizeof(uint32_t),1,f);
-    fread(&E[h].maxItem,sizeof(uint32_t),1,f);
+    SAFE_FREAD(&E[h].nbItem,sizeof(uint32_t),1,f);
+    SAFE_FREAD(&E[h].maxItem,sizeof(uint32_t),1,f);
 
     uint64_t hSize = 32ULL * E[h].nbItem;
 #ifdef WIN64
@@ -454,24 +503,59 @@ void HashTable::LoadTable(FILE* f,uint32_t from,uint32_t to) {
 
   Reset();
 
-  for(uint32_t h = from; h < to; h++) {
-
-    fread(&E[h].nbItem,sizeof(uint32_t),1,f);
-    fread(&E[h].maxItem,sizeof(uint32_t),1,f);
-
-    if(E[h].maxItem > 0)
-      // Allocate indexes
-      E[h].items = (ENTRY**)malloc(sizeof(ENTRY*) * E[h].maxItem);
-
-    for(uint32_t i = 0; i < E[h].nbItem; i++) {
-      ENTRY* e = (ENTRY*)malloc(sizeof(ENTRY));
-      fread(&(e->x),16,1,f);
-      fread(&(e->d),16,1,f);
-      E[h].items[i] = e;
-    }
-
+  // Check format version
+  uint32_t formatVersion = 1; // Default to old format
+  long pos = ftell(f);
+  if(fread(&formatVersion,sizeof(uint32_t),1,f) != 1) {
+    // File too small, rewind and use old format
+    fseek(f, pos, SEEK_SET);
+    formatVersion = 1;
   }
 
+  if(formatVersion == 2) {
+    // New optimized format
+    uint32_t nonEmptyBuckets;
+    SAFE_FREAD(&nonEmptyBuckets,sizeof(uint32_t),1,f);
+
+    ::printf("📂 Loading optimized format: %u non-empty buckets\n", nonEmptyBuckets);
+
+    for(uint32_t b = 0; b < nonEmptyBuckets; b++) {
+      uint32_t h, nbItem;
+      SAFE_FREAD(&h,sizeof(uint32_t),1,f);
+      SAFE_FREAD(&nbItem,sizeof(uint32_t),1,f);
+
+      if(h >= HASH_SIZE) continue; // Safety check
+
+      E[h].nbItem = nbItem;
+      E[h].maxItem = nbItem + 4; // Add some growth room
+      E[h].items = (ENTRY**)malloc(sizeof(ENTRY*) * E[h].maxItem);
+
+      for(uint32_t i = 0; i < nbItem; i++) {
+        ENTRY* e = (ENTRY*)malloc(sizeof(ENTRY));
+        SAFE_FREAD(&(e->x),16,1,f);
+        SAFE_FREAD(&(e->d),16,1,f);
+        E[h].items[i] = e;
+      }
+    }
+  } else {
+    // Old format - rewind and process normally
+    fseek(f, pos, SEEK_SET);
+
+    for(uint32_t h = from; h < to; h++) {
+      SAFE_FREAD(&E[h].nbItem,sizeof(uint32_t),1,f);
+      SAFE_FREAD(&E[h].maxItem,sizeof(uint32_t),1,f);
+
+      if(E[h].maxItem > 0)
+        E[h].items = (ENTRY**)malloc(sizeof(ENTRY*) * E[h].maxItem);
+
+      for(uint32_t i = 0; i < E[h].nbItem; i++) {
+        ENTRY* e = (ENTRY*)malloc(sizeof(ENTRY));
+        SAFE_FREAD(&(e->x),16,1,f);
+        SAFE_FREAD(&(e->d),16,1,f);
+        E[h].items[i] = e;
+      }
+    }
+  }
 
 }
 

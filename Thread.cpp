@@ -55,6 +55,8 @@ void  Kangaroo::JoinThreads(THREAD_HANDLE *handles, int nbThread) {
     pthread_join(handles[i], NULL);
 }
 void  Kangaroo::FreeHandles(THREAD_HANDLE *handles, int nbThread) {
+  (void)handles; // Suppress unused parameter warning
+  (void)nbThread; // Suppress unused parameter warning
 }
 #endif
 

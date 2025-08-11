@@ -127,6 +127,7 @@ int64_t INV256[] = {
     -0LL,-17LL,-0LL,-123LL,-0LL,-29LL,-0LL,-199LL,-0LL,-73LL,-0LL,-115LL,-0LL,-21LL,-0LL,-255LL, };
 
 void Int::DivStep62(Int* u,Int* v,int64_t* eta,int* pos,int64_t* uu,int64_t* uv,int64_t* vu,int64_t* vv) {
+  (void)eta; // Suppress unused parameter warning
 
   // u' = (uu*u + uv*v) >> bitCount
   // v' = (vu*u + vv*v) >> bitCount
@@ -200,6 +201,7 @@ void Int::DivStep62(Int* u,Int* v,int64_t* eta,int* pos,int64_t* uu,int64_t* uv,
   uint64_t vh;
   uint64_t w,x;
   unsigned char c = 0;
+  (void)c; // Suppress unused variable warning
 
   // Extract 64 MSB of u and v
   // u and v must be positive
@@ -231,10 +233,10 @@ void Int::DivStep62(Int* u,Int* v,int64_t* eta,int* pos,int64_t* uu,int64_t* uv,
   _v.m128i_u64[0] = 0;
   _v.m128i_u64[1] = 1;
 #else
-  ((int64_t *)&_u)[0] = 1;
-  ((int64_t *)&_u)[1] = 0;
-  ((int64_t *)&_v)[0] = 0;
-  ((int64_t *)&_v)[1] = 1;
+  int64_t u_vals[2] = {1, 0};
+  int64_t v_vals[2] = {0, 1};
+  memcpy(&_u, u_vals, sizeof(_u));
+  memcpy(&_v, v_vals, sizeof(_v));
 #endif
 
   while(true) {
@@ -268,10 +270,13 @@ void Int::DivStep62(Int* u,Int* v,int64_t* eta,int* pos,int64_t* uu,int64_t* uv,
   *vu = _v.m128i_u64[0];
   *vv = _v.m128i_u64[1];
 #else
-  *uu = ((int64_t *)&_u)[0];
-  *uv = ((int64_t *)&_u)[1];
-  *vu = ((int64_t *)&_v)[0];
-  *vv = ((int64_t *)&_v)[1];
+  int64_t u_result[2], v_result[2];
+  memcpy(u_result, &_u, sizeof(_u));
+  memcpy(v_result, &_v, sizeof(_v));
+  *uu = u_result[0];
+  *uv = u_result[1];
+  *vu = v_result[0];
+  *vv = v_result[1];
 #endif
 
 #endif
@@ -575,6 +580,7 @@ void Int::ModExp(Int *e) {
   Int base(this);
   SetInt32(1);
   uint32_t i = 0;
+  (void)i; // Suppress unused variable warning
 
   uint32_t nbBit = e->GetBitLength();
   for(int i=0;i<(int)nbBit;i++) {
@@ -656,6 +662,7 @@ void Int::ModSqrt() {
   } else if ((_P.bits64[0] & 3) == 1) {
 
     int nbBit = _P.GetBitLength();
+    (void)nbBit; // Suppress unused variable warning
 
     // Tonelli Shanks
     uint64_t e=0;
@@ -1243,27 +1250,23 @@ void Int::InitK1(Int *order) {
 }
 
 void Int::ModAddK1order(Int *a, Int *b) {
-  Add(a,b);  // this = a + b
-  // 检查结果是否 >= n (曲线阶 _O)
-  if(IsGreaterOrEqual(_O)) {
-    Sub(_O);  // this = this - n (只有在需要时才减)
-  }
-  // 如果 a + b < n, 则不需要任何操作，结果已经在 [0, n-1] 范围内
+  Add(a,b);
+  Sub(_O);
+  if (IsNegative())
+    Add(_O);
 }
 
 void Int::ModAddK1order(Int *a) {
-  Add(a);  // this = this + a
-  // 检查结果是否 >= n (曲线阶 _O)
-  if(IsGreaterOrEqual(_O)) {
-    Sub(_O);  // this = this - n (只有在需要时才减)
-  }
-  // 如果 this + a < n, 则不需要任何操作，结果已经在 [0, n-1] 范围内
+  Add(a);
+  Sub(_O);
+  if(IsNegative())
+    Add(_O);
 }
 
 void Int::ModSubK1order(Int *a) {
-  Sub(a);  // this = this - a
+  Sub(a);
   if(IsNegative())
-    Add(_O);  // if negative, this = this + order
+    Add(_O);
 }
 
 void Int::ModNegK1order() {

@@ -32,6 +32,14 @@
 #define ADD_OK        0
 #define ADD_DUPLICATE 1
 #define ADD_COLLISION 2
+#define ADD_OVERFLOW  3
+
+// Maximum items per hash bucket to prevent excessive memory usage
+#define MAX_ITEMS_PER_BUCKET 2048
+// Maximum total items in hash table (increased for better performance)
+#define MAX_TOTAL_ITEMS (HASH_SIZE * 128)
+// Soft limit for hash table cleanup trigger
+#define SOFT_LIMIT_ITEMS (HASH_SIZE * 96)
 
 union int128_s {
 

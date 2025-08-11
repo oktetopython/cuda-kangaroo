@@ -40,10 +40,8 @@ typedef int SOCKET;
 #include <vector>
 #include "SECPK1/SECP256k1.h"
 #include "HashTable.h"
-#include "HashTable512.h"  // 512-bit哈希表支持
 #include "SECPK1/IntGroup.h"
 #include "GPU/GPUEngine.h"
-#include "BernsteinTable.h"
 
 #ifdef WIN64
 typedef HANDLE THREAD_HANDLE;
@@ -133,7 +131,6 @@ public:
   Kangaroo(Secp256K1 *secp,int32_t initDPSize,bool useGpu,std::string &workFile,std::string &iWorkFile,
            uint32_t savePeriod,bool saveKangaroo,bool saveKangarooByServer,double maxStep,int wtimeout,int sport,int ntimeout,
            std::string serverIp,std::string outputFile,bool splitWorkfile);
-  ~Kangaroo();
   void Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize);
   void RunServer();
   bool ParseConfigFile(std::string &fileName);
@@ -148,9 +145,6 @@ public:
   void CheckWorkFile(int nbCore,std::string& fileName);
   void CheckPartition(int nbCore,std::string& partName);
   bool FillEmptyPartFromFile(std::string& partName,std::string& fileName,bool printStat);
-
-  // Bernstein算法通用科学测试
-  void BernsteinGeneralTest(int l_bits, int t_bits, int w_bits, const std::string& configFile = "");
 
   // Threaded procedures
   void SolveKeyCPU(TH_PARAM *p);
@@ -173,7 +167,6 @@ private:
   void CreateJumpTable();
   bool AddToTable(uint64_t h,int128_t *x,int128_t *d);
   bool AddToTable(Int *pos,Int *dist,uint32_t kType);
-  bool AddToTable512(Int *pos,Int *dist,uint32_t kType);  // 512-bit版本
   bool SendToServer(std::vector<ITEM> &dp,uint32_t threadId,uint32_t gpuId);
   bool CheckKey(Int d1,Int d2,uint8_t type);
   bool CollisionCheck(Int* d1,uint32_t type1,Int* d2,uint32_t type2);
@@ -197,7 +190,7 @@ private:
   int IsDir(std::string dirName);
   bool IsEmpty(std::string fileName);
   static std::string GetPartName(std::string& partName,int i,bool tmpPart);
-  static FILE* OpenPart(std::string& partName,char* mode,int i,bool tmpPart=false);
+  static FILE* OpenPart(std::string& partName,const char* mode,int i,bool tmpPart=false);
   uint32_t CheckHash(uint32_t h,uint32_t nbItem,HashTable* hT,FILE* f);
 
 
@@ -235,9 +228,7 @@ private:
   bool isWaiting(TH_PARAM *p);
 
   Secp256K1 *secp;
-  HashTable hashTable;        // 原始128-bit哈希表 (兼容性)
-  HashTable512 hashTable512;  // 新的512-bit哈希表 (突破125-bit限制)
-  bool use512BitHashTable;    // 是否使用512-bit哈希表
+  HashTable hashTable;
   uint64_t counters[256];
   int  nbCPUThread;
   int  nbGPUThread;
@@ -304,8 +295,6 @@ private:
   std::string serverStatus;
   int connectedClient;
   uint32_t pid;
-
-
 
 };
 

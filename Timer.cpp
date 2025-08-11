@@ -129,7 +129,7 @@ std::string Timer::getSeed(int size) {
     printf("Failed to open /dev/urandom %s\n", strerror( errno ));
     exit(1);
   }
-  if( fread(buff,1,size,f)!=size ) {
+  if( fread(buff,1,size,f)!=(size_t)size ) {
     printf("Failed to read from /dev/urandom %s\n", strerror( errno ));
     exit(1);
   }
@@ -148,7 +148,7 @@ std::string Timer::getSeed(int size) {
 }
 
 
-std::string Timer::getResult(char *unit, int nbTry, double t0, double t1) {
+std::string Timer::getResult(const char *unit, int nbTry, double t0, double t1) {
 
   char tmp[256];
   int pIdx = 0;
@@ -162,7 +162,7 @@ std::string Timer::getResult(char *unit, int nbTry, double t0, double t1) {
 
 }
 
-void Timer::printResult(char *unit, int nbTry, double t0, double t1) {
+void Timer::printResult(const char *unit, int nbTry, double t0, double t1) {
 
   printf("%s\n", getResult(unit, nbTry, t0, t1).c_str());
 

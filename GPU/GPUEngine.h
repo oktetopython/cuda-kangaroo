@@ -19,12 +19,10 @@
 #define GPUENGINEH
 
 #include <vector>
+#include <memory>
 #include "../Constants.h"
 #include "../SECPK1/SECP256k1.h"
-
-#ifdef WITHGPU
-#include <cuda_runtime.h>
-#endif
+#include "CudaMemoryManager.h"
 
 #ifdef USE_SYMMETRY
 #define KSIZE 11
@@ -40,6 +38,19 @@ typedef struct {
   Int d;
   uint64_t kIdx;
 } ITEM;
+
+// RAII GPU Memory Management Class
+class CudaMemoryGuard {
+public:
+  CudaMemoryGuard() = default;
+  ~CudaMemoryGuard();  // Implementation in .cu file to avoid CUDA header dependency
+
+  // Non-copyable, non-movable
+  CudaMemoryGuard(const CudaMemoryGuard&) = delete;
+  CudaMemoryGuard& operator=(const CudaMemoryGuard&) = delete;
+  CudaMemoryGuard(CudaMemoryGuard&&) = delete;
+  CudaMemoryGuard& operator=(CudaMemoryGuard&&) = delete;
+};
 
 class GPUEngine {
 
@@ -60,6 +71,9 @@ public:
   bool callKernelAndWait();
   bool callKernel();
 
+  // Force GPU memory cleanup (emergency cleanup)
+  static void ForceGPUCleanup();
+
   std::string deviceName;
 
   static void *AllocatePinnedMemory(size_t size);
@@ -72,22 +86,21 @@ private:
   Int wildOffset;
   int nbThread;
   int nbThreadPerGroup;
+  bool initialised;
+  bool lostWarning;
+  uint32_t maxFound;
+  uint64_t dpMask;
+  
+  // RAII Memory Management
+  std::unique_ptr<KangarooMemoryLayout> memory_layout_;
+  
+  // Legacy compatibility - will be removed
   uint64_t *inputKangaroo;
   uint64_t *inputKangarooPinned;
   uint32_t *outputItem;
   uint32_t *outputItemPinned;
   uint64_t *jumpPinned;
-  uint64_t *jumpDistance;  // 🔧 添加跳跃距离表指针
-  bool initialised;
-  bool lostWarning;
-  uint32_t maxFound;
-  uint32_t outputSize;
-  uint32_t kangarooSize;
-  uint32_t kangarooSizePinned;
-  uint32_t jumpSize;
-  uint64_t dpMask;
 
 };
-
 
 #endif // GPUENGINEH

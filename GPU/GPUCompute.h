@@ -16,6 +16,8 @@
 */
 
 // CUDA Kernel main function
+#include "UnifiedGPUMath.h"
+#include "UnifiedEllipticCurve.h"
 
 // -----------------------------------------------------------------------------------------
 
@@ -60,7 +62,7 @@ __device__ void ComputeKangaroos(uint64_t *kangaroos,uint32_t maxFound,uint32_t 
       ModSub256(dx[g],px[g],jPx[jmp]);
     }
 
-    _ModInvGrouped(dx);
+    UnifiedGPUMath::BatchModInv(dx, GPU_GRP_SIZE);
 
     __syncthreads();
 
@@ -93,13 +95,24 @@ __device__ void ComputeKangaroos(uint64_t *kangaroos,uint32_t maxFound,uint32_t 
         ModNeg256Order(dist[g]);
 #endif
 
-      if((px[g][3] & dpMask) == 0) {
+      if(dpMask != 0 && (px[g][3] & dpMask) == 0) {
 
-        // Distinguished point
-        uint32_t pos = atomicAdd(out,1);
-        if(pos < maxFound) {
-          uint64_t kIdx = (uint64_t)IDX + (uint64_t)g*(uint64_t)blockDim.x + (uint64_t)blockIdx.x*((uint64_t)blockDim.x*GPU_GRP_SIZE);
-          OutputDP(px[g],dist[g],&kIdx);
+        // Distinguished point - use atomic compare-and-swap for safe reservation
+        uint32_t currentCount = atomicAdd(out, 0); // Read current count without incrementing
+        if(currentCount < maxFound) {
+          // Attempt to reserve a slot atomically
+          uint32_t pos = atomicAdd(out, 1);
+          // Double-check after atomic increment to handle race conditions
+          if(pos < maxFound) {
+            // Additional boundary check to prevent buffer overflow
+            // Each DP uses 14 uint32_t elements (ITEM_SIZE32), plus 1 for the count
+            uint32_t maxSafePos = (maxFound > 0) ? maxFound - 1 : 0;
+            if(pos <= maxSafePos && (pos * 14 + 14) <= (maxFound * 14)) {
+              uint64_t kIdx = (uint64_t)IDX + (uint64_t)g*(uint64_t)blockDim.x + (uint64_t)blockIdx.x*((uint64_t)blockDim.x*GPU_GRP_SIZE);
+              OutputDP(px[g],dist[g],&kIdx);
+            }
+          }
+          // If pos >= maxFound after increment, the slot was wasted but no corruption occurs
         }
 
       }

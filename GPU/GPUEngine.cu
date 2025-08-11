@@ -29,6 +29,7 @@
 
 #include "GPUMath.h"
 #include "GPUCompute.h"
+#include "CudaErrorHandler.h"
 
 // ---------------------------------------------------------------------------------------
 
@@ -152,7 +153,7 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
   cudaError_t error_id = cudaGetDeviceCount(&deviceCount);
 
   if(error_id != cudaSuccess) {
-    printf("GPUEngine: CudaGetDeviceCount %s\n",cudaGetErrorString(error_id));
+    CudaErrorHandler::HandleGPUEngineError(error_id, "CudaGetDeviceCount");
     return;
   }
 
@@ -183,7 +184,7 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
     nbThreadPerGroup);
   deviceName = std::string(tmp);
 
-  // 标准内核偏好L1缓存
+  // Prefer L1 (We do not use __shared__ at all)
   err = cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
   if(err != cudaSuccess) {
     printf("GPUEngine: %s\n",cudaGetErrorString(err));
@@ -196,20 +197,13 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
   outputItem = NULL;
   outputItemPinned = NULL;
   jumpPinned = NULL;
-  jumpDistance = NULL;  // 🔧 初始化跳跃距离表指针
 
-  // Input kangaroos - 确保16字节对齐
+  // Input kangaroos
   kangarooSize = nbThread * GPU_GRP_SIZE * KSIZE * 8;
-  // 对齐到16字节边界
-  kangarooSize = (kangarooSize + 15) & ~15;
   err = cudaMalloc((void **)&inputKangaroo,kangarooSize);
   if(err != cudaSuccess) {
-    printf("GPUEngine: Allocate input memory: %s\n",cudaGetErrorString(err));
+    CudaErrorHandler::HandleMemoryError(err, "input", kangarooSize);
     return;
-  }
-  // 验证对齐
-  if(reinterpret_cast<uintptr_t>(inputKangaroo) % 16 != 0) {
-    printf("GPUEngine: Warning - inputKangaroo not 16-byte aligned\n");
   }
   kangarooSizePinned = nbThreadPerGroup * GPU_GRP_SIZE *  KSIZE * 8;
   err = cudaHostAlloc(&inputKangarooPinned,kangarooSizePinned,cudaHostAllocWriteCombined | cudaHostAllocMapped);
@@ -218,17 +212,11 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
     return;
   }
 
-  // OutputHash - 确保16字节对齐
-  // 对齐到16字节边界
-  outputSize = (outputSize + 15) & ~15;
+  // OutputHash
   err = cudaMalloc((void **)&outputItem,outputSize);
   if(err != cudaSuccess) {
     printf("GPUEngine: Allocate output memory: %s\n",cudaGetErrorString(err));
     return;
-  }
-  // 验证对齐
-  if(reinterpret_cast<uintptr_t>(outputItem) % 16 != 0) {
-    printf("GPUEngine: Warning - outputItem not 16-byte aligned\n");
   }
   err = cudaHostAlloc(&outputItemPinned,outputSize,cudaHostAllocMapped);
   if(err != cudaSuccess) {
@@ -236,25 +224,13 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
     return;
   }
 
-  // Jump array - 改用设备端malloc确保16字节对齐
+  // Jump array
   jumpSize = NB_JUMP * 8 * 4;
   err = cudaHostAlloc(&jumpPinned,jumpSize,cudaHostAllocMapped);
   if(err != cudaSuccess) {
     printf("GPUEngine: Allocate jump pinned memory: %s\n",cudaGetErrorString(err));
     return;
   }
-
-
-
-  // 🔧 分配跳跃距离表内存
-  size_t jumpDistanceSize = NB_JUMP * 8;  // NB_JUMP个uint64_t
-  err = cudaHostAlloc(&jumpDistance, jumpDistanceSize, cudaHostAllocMapped);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Allocate jump distance memory: %s\n",cudaGetErrorString(err));
-    return;
-  }
-
-
 
   lostWarning = false;
   initialised = true;
@@ -279,12 +255,51 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
 
 GPUEngine::~GPUEngine() {
 
-  if(inputKangaroo) cudaFree(inputKangaroo);
-  if(outputItem) cudaFree(outputItem);
-  if(inputKangarooPinned) cudaFreeHost(inputKangarooPinned);
-  if(outputItemPinned) cudaFreeHost(outputItemPinned);
-  if(jumpPinned) cudaFreeHost(jumpPinned);
-  if(jumpDistance) cudaFreeHost(jumpDistance);
+  // Free GPU device memory
+  if(inputKangaroo) {
+    cudaError_t err = cudaFree(inputKangaroo);
+    if(err != cudaSuccess) {
+      printf("GPUEngine: Warning - Failed to free inputKangaroo: %s\n", cudaGetErrorString(err));
+    }
+    inputKangaroo = nullptr;
+  }
+  if(outputItem) {
+    cudaError_t err = cudaFree(outputItem);
+    if(err != cudaSuccess) {
+      printf("GPUEngine: Warning - Failed to free outputItem: %s\n", cudaGetErrorString(err));
+    }
+    outputItem = nullptr;
+  }
+
+  // Free host pinned memory
+  if(inputKangarooPinned) {
+    cudaError_t err = cudaFreeHost(inputKangarooPinned);
+    if(err != cudaSuccess) {
+      printf("GPUEngine: Warning - Failed to free inputKangarooPinned: %s\n", cudaGetErrorString(err));
+    }
+    inputKangarooPinned = nullptr;
+  }
+  if(outputItemPinned) {
+    cudaError_t err = cudaFreeHost(outputItemPinned);
+    if(err != cudaSuccess) {
+      printf("GPUEngine: Warning - Failed to free outputItemPinned: %s\n", cudaGetErrorString(err));
+    }
+    outputItemPinned = nullptr;
+  }
+  if(jumpPinned) {
+    cudaError_t err = cudaFreeHost(jumpPinned);
+    if(err != cudaSuccess) {
+      printf("GPUEngine: Warning - Failed to free jumpPinned: %s\n", cudaGetErrorString(err));
+    }
+    jumpPinned = nullptr;
+  }
+
+  // Force GPU context cleanup to prevent memory leaks
+  // This ensures all GPU memory is properly released
+  cudaError_t err = cudaDeviceReset();
+  if(err != cudaSuccess) {
+    printf("GPUEngine: Warning - GPU device reset failed: %s\n", cudaGetErrorString(err));
+  }
 
 }
 
@@ -349,7 +364,32 @@ void *GPUEngine::AllocatePinnedMemory(size_t size) {
 }
 
 void GPUEngine::FreePinnedMemory(void *buff) {
-  cudaFreeHost(buff);
+  if(buff) {
+    cudaError_t err = cudaFreeHost(buff);
+    if(err != cudaSuccess) {
+      printf("GPUEngine: Warning - Failed to free pinned memory: %s\n", cudaGetErrorString(err));
+    }
+  }
+}
+
+void GPUEngine::ForceGPUCleanup() {
+  // Emergency GPU memory cleanup function
+  // This can be called from signal handlers or exception handlers
+  cudaError_t err = cudaDeviceReset();
+  if(err != cudaSuccess) {
+    printf("ForceGPUCleanup: GPU reset failed: %s\n", cudaGetErrorString(err));
+  } else {
+    printf("ForceGPUCleanup: GPU memory successfully released\n");
+  }
+}
+
+// CudaMemoryGuard destructor implementation
+CudaMemoryGuard::~CudaMemoryGuard() {
+  // Force cleanup of all GPU resources on destruction
+  cudaError_t err = cudaDeviceReset();
+  if(err != cudaSuccess) {
+    printf("CudaMemoryGuard: GPU cleanup warning: %s\n", cudaGetErrorString(err));
+  }
 }
 
 void GPUEngine::PrintCudaInfo() {
@@ -370,7 +410,7 @@ void GPUEngine::PrintCudaInfo() {
   cudaError_t error_id = cudaGetDeviceCount(&deviceCount);
 
   if(error_id != cudaSuccess) {
-    printf("GPUEngine: CudaGetDeviceCount %s\n",cudaGetErrorString(error_id));
+    CudaErrorHandler::HandleGPUEngineError(error_id, "CudaGetDeviceCount");
     return;
   }
 
@@ -526,74 +566,109 @@ void GPUEngine::SetKangaroo(uint64_t kIdx,Int *px,Int *py,Int *d) {
   uint64_t g = (kIdx / nbThreadPerGroup) % GPU_GRP_SIZE;
   uint64_t b = kIdx / (nbThreadPerGroup*GPU_GRP_SIZE);
 
+  cudaError_t err;
+
   // X
   inputKangarooPinned[0] = px->bits64[0];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 0 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 0 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy px[0] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = px->bits64[1];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 1 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 1 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy px[1] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = px->bits64[2];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 2 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 2 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy px[2] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = px->bits64[3];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 3 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 3 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy px[3] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
 
   // Y
   inputKangarooPinned[0] = py->bits64[0];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 4 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 4 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy py[0] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = py->bits64[1];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 5 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 5 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy py[1] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = py->bits64[2];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 6 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 6 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy py[2] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = py->bits64[3];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 7 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 7 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy py[3] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
 
   // D
   Int dOff;
   dOff.Set(d);
   if(kIdx % 2 == WILD) dOff.ModAddK1order(&wildOffset);
+
   inputKangarooPinned[0] = dOff.bits64[0];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 8 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 8 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy d[0] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
+
   inputKangarooPinned[0] = dOff.bits64[1];
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 9 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 9 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy d[1] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
 
 #ifdef USE_SYMMETRY
   // Last jump
   inputKangarooPinned[0] = (uint64_t)NB_JUMP;
-  cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 10 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 10 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+  if(err != cudaSuccess) {
+    printf("GPUEngine: SetKangaroo: Failed to copy jump count for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
+    return;
+  }
 #endif
 
 }
 
 bool GPUEngine::callKernel() {
 
-  // 在真正 launch 之前打印所有关键指针和大小
-  printf("CHECK: kang=%p found=%p maxFound=%u dpMask=0x%016llx\n",
-         inputKangaroo, outputItem, maxFound, dpMask);
-  printf("CHECK: jumpPinned=%p jumpDistance=%p\n", jumpPinned, jumpDistance);
-
-  // 检查预先存在的错误
-  cudaError_t pre = cudaGetLastError();
-  if (pre != cudaSuccess) {
-      printf("Pre-launch error: %s\n", cudaGetErrorString(pre));
-      return false;
-  }
-
   // Reset nbFound
   cudaMemset(outputItem,0,4);
-  cudaError_t err;
 
-  // 简化的内存对齐检查
-  printf("=== Pre-kernel Memory Alignment Check ===\n");
-  printf("inputKangaroo: %p (align=%d)\n", inputKangaroo, (int)(reinterpret_cast<uintptr_t>(inputKangaroo) % 16));
-  printf("outputItem: %p (align=%d)\n", outputItem, (int)(reinterpret_cast<uintptr_t>(outputItem) % 16));
-  
-  // 使用标准内核
-  printf("GPUEngine: Using standard kernel\n");
-  comp_kangaroos<<<nbThread/nbThreadPerGroup,nbThreadPerGroup>>>(inputKangaroo,maxFound,outputItem,dpMask);
+  // Call the kernel (Perform STEP_SIZE keys per thread)
+  comp_kangaroos << < nbThread / nbThreadPerGroup,nbThreadPerGroup >> >
+      (inputKangaroo,maxFound,outputItem,dpMask);
 
-  // 检查内核执行状态
-  err = cudaDeviceSynchronize();
+  cudaError_t err = cudaGetLastError();
   if(err != cudaSuccess) {
-    printf("GPUEngine: Kernel execution error: %s\n",cudaGetErrorString(err));
+    printf("GPUEngine: Kernel: %s\n",cudaGetErrorString(err));
     return false;
   }
 
@@ -602,15 +677,13 @@ bool GPUEngine::callKernel() {
 }
 
 void GPUEngine::SetParams(uint64_t dpMask,Int *distance,Int *px,Int *py) {
-
+  
   this->dpMask = dpMask;
-  cudaError_t err;
 
-  // 标准内核：复制到常量内存
   for(int i=0;i< NB_JUMP;i++)
     memcpy(jumpPinned + 2*i,distance[i].bits64,16);
   cudaMemcpyToSymbol(jD,jumpPinned,jumpSize/2);
-  err = cudaGetLastError();
+  cudaError_t err = cudaGetLastError();
   if(err != cudaSuccess) {
     printf("GPUEngine: SetParams: Failed to copy to constant memory: %s\n",cudaGetErrorString(err));
     return;
@@ -633,8 +706,6 @@ void GPUEngine::SetParams(uint64_t dpMask,Int *distance,Int *px,Int *py) {
     printf("GPUEngine: SetParams: Failed to copy to constant memory: %s\n",cudaGetErrorString(err));
     return;
   }
-
-
 
 }
 
@@ -666,39 +737,16 @@ bool GPUEngine::Launch(std::vector<ITEM> &hashFound,bool spinWait) {
 
   } else {
 
-    // 🔧 修复invalid resource handle：添加事件错误检查
+    // Use cudaMemcpyAsync to avoid default spin wait of cudaMemcpy wich takes 100% CPU
     cudaEvent_t evt;
-    cudaError_t evt_err = cudaEventCreate(&evt);
-    if(evt_err != cudaSuccess) {
-      printf("GPUEngine: Event create error: %s\n", cudaGetErrorString(evt_err));
-      // 回退到同步拷贝
-      cudaMemcpy(outputItemPinned,outputItem,4,cudaMemcpyDeviceToHost);
-    } else {
-      cudaMemcpyAsync(outputItemPinned,outputItem,4,cudaMemcpyDeviceToHost,0);
-      cudaEventRecord(evt,0);
-
-      // 🔧 大幅缩短超时时间，快速检测问题
-      int timeout_ms = 100; // 100毫秒超时，快速检测
-      int elapsed_ms = 0;
-
-      while(cudaEventQuery(evt) == cudaErrorNotReady && elapsed_ms < timeout_ms) {
-        // Sleep 1 ms to free the CPU
-        Timer::SleepMillis(1);
-        elapsed_ms += 1;
-      }
-
-      if(elapsed_ms >= timeout_ms) {
-        printf("GPUEngine: Warning - GPU kernel timeout after %d ms\n", timeout_ms);
-        // 强制同步，避免卡死
-        cudaDeviceSynchronize();
-      }
-
-      // 检查事件销毁前的状态
-      cudaError_t destroy_err = cudaEventDestroy(evt);
-      if(destroy_err != cudaSuccess) {
-        printf("GPUEngine: Event destroy error: %s\n", cudaGetErrorString(destroy_err));
-      }
+    cudaEventCreate(&evt);
+    cudaMemcpyAsync(outputItemPinned,outputItem,4,cudaMemcpyDeviceToHost,0);
+    cudaEventRecord(evt,0);
+    while(cudaEventQuery(evt) == cudaErrorNotReady) {
+      // Sleep 1 ms to free the CPU
+      Timer::SleepMillis(1);
     }
+    cudaEventDestroy(evt);
 
   }
 
@@ -712,10 +760,24 @@ bool GPUEngine::Launch(std::vector<ITEM> &hashFound,bool spinWait) {
   uint32_t nbFound = outputItemPinned[0];
   if(nbFound > maxFound) {
     // prefix has been lost
+    uint32_t itemsLost = nbFound - maxFound;
     if(!lostWarning) {
-      printf("\nWarning, %d items lost\nHint: Search with less threads (-g) or increse dp (-d)\n",(nbFound - maxFound));
+      printf("\n[!] WARNING: %u distinguished points lost!\n", itemsLost);
+      printf("[*] Solutions:\n");
+      printf("   1. Reduce GPU threads: -g <smaller_x>,<smaller_y>\n");
+      printf("   2. Increase DP size: -d <larger_value>\n");
+      printf("   3. Current buffer size: %u items\n", maxFound);
+      printf("   4. Detected overflow: %u items\n", nbFound);
       lostWarning = true;
     }
+
+    // Log periodic warnings for severe overflow
+    static uint32_t warningCounter = 0;
+    warningCounter++;
+    if(warningCounter % 100 == 0) {
+      printf("[!] Overflow continues: %u items lost (warning #%u)\n", itemsLost, warningCounter);
+    }
+
     nbFound = maxFound;
   }
 

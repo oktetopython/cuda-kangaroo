@@ -15,11 +15,29 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-// ============================================================================
-// 🧹 CLEANED: 使用统一头文件，消除重复包含
-// ============================================================================
-#include "KangarooCommon.h"
+#include "Kangaroo.h"
+#include <fstream>
+#include "SECPK1/IntGroup.h"
+
+// Macro to suppress fread return value warnings
+#define SAFE_FREAD(ptr, size, count, stream) \
+  do { \
+    size_t result = fread(ptr, size, count, stream); \
+    (void)result; /* Suppress unused variable warning */ \
+  } while(0)
+#include "Timer.h"
+#include <string.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+#include <algorithm>
 #include <signal.h>
+#ifndef WIN64
+#include <pthread.h>
+#else
+#include "WindowsErrors.h"
+#endif
+
+using namespace std;
 
 static SOCKET serverSock = 0;
 
@@ -361,8 +379,8 @@ bool Kangaroo::HandleRequest(TH_PARAM *p) {
         CLIENT_ABORT();
       }
 
-      ::fread(&version,sizeof(uint32_t),1,f);
-      ::fread(&nbKangaroo,sizeof(uint64_t),1,f);
+      SAFE_FREAD(&version,sizeof(uint32_t),1,f);
+      SAFE_FREAD(&nbKangaroo,sizeof(uint64_t),1,f);
 
       PUT("nbKangaroo",p->clientSock,&nbKangaroo,sizeof(uint64_t),ntimeout);
 
@@ -378,7 +396,7 @@ bool Kangaroo::HandleRequest(TH_PARAM *p) {
         }
 
         for(uint32_t k = 0; k < nbK; k++) {
-          ::fread(&KBuff[k],16,1,f);
+          SAFE_FREAD(&KBuff[k],16,1,f);
           // Checksum
           K.SetInt32(0);
           K.bits64[1] = KBuff[k].i64[1];
@@ -524,7 +542,7 @@ bool Kangaroo::HandleRequest(TH_PARAM *p) {
         state = GetServerStatus();
         PUTFREE("Status",p->clientSock,&state,sizeof(int32_t),ntimeout,dp);
 
-        if(nbRead != sizeof(DP)* head.nbDP) {
+        if(nbRead != (int)(sizeof(DP)* head.nbDP)) {
 
           ::printf("\nUnexpected DP size from %s [nbDP=%d,Got %d,Expected %d]\n",
             p->clientInfo,head.nbDP,nbRead,(int)(sizeof(DP)* head.nbDP));

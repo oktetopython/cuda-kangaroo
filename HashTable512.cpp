@@ -1,6 +1,6 @@
 /**
  * @file HashTable512.cpp
- * @brief 512-bit哈希表实现 - 真正突破125-bit限制
+ * @brief 512-bit hash table implementation - truly breakthrough 125-bit limit
  */
 
 #include "HashTable512.h"
@@ -10,7 +10,7 @@
 #include <cstdio>
 
 /**
- * @brief 构造函数
+ * @brief Constructor
  */
 HashTable512::HashTable512() {
     E = (HASH_ENTRY512 *)calloc(HASH512_SIZE, sizeof(HASH_ENTRY512));
@@ -25,25 +25,27 @@ HashTable512::HashTable512() {
 }
 
 /**
- * @brief 析构函数
+ * @brief Destructor
  */
 HashTable512::~HashTable512() {
     Reset();
-    free(E);
-    printf("[HashTable512] Destroyed, freed %.1f MB\n", totalMemory / (1024.0 * 1024.0));
+    if(E) {
+        free(E);
+        E = nullptr;
+    }
 }
 
 /**
- * @brief 计算512-bit哈希值
+ * @brief Calculate 512-bit hash value
  */
 uint64_t HashTable512::Hash512(int512_t *x) {
-    // 使用多个64位字进行哈希，提高分布质量
+    // Use multiple 64-bit words for hashing to improve distribution quality
     uint64_t h = 0;
     
-    // 混合所有8个64位字
+    // Mix all 8 64-bit words
     for(int i = 0; i < 8; i++) {
         h ^= x->i64[i];
-        h = h * 0x9e3779b97f4a7c15ULL; // 黄金比例常数
+        h = h * 0x9e3779b97f4a7c15ULL; // Golden ratio constant
         h ^= h >> 30;
     }
     
@@ -51,38 +53,21 @@ uint64_t HashTable512::Hash512(int512_t *x) {
 }
 
 /**
- * @brief 比较512-bit整数
- */
-bool HashTable512::IsEqual512(int512_t *a, int512_t *b) {
-    return memcmp(a, b, sizeof(int512_t)) == 0;
-}
-
-/**
- * @brief 复制512-bit整数
- */
-void HashTable512::Copy512(int512_t *dest, int512_t *src) {
-    memcpy(dest, src, sizeof(int512_t));
-}
-
-/**
- * @brief 创建512-bit条目
+ * @brief Create 512-bit entry
  */
 ENTRY512* HashTable512::CreateEntry512(int512_t *x, int512_t *d) {
     ENTRY512* e = (ENTRY512*)malloc(sizeof(ENTRY512));
-    if(!e) {
-        printf("[ERROR] Failed to allocate ENTRY512\n");
-        return nullptr;
-    }
+    if(!e) return nullptr;
     
-    Copy512(&e->x, x);
-    Copy512(&e->d, d);
+    memcpy(&e->x, x, sizeof(int512_t));
+    memcpy(&e->d, d, sizeof(int512_t));
+    
     totalMemory += sizeof(ENTRY512);
-    
     return e;
 }
 
 /**
- * @brief 释放条目
+ * @brief Free 512-bit entry
  */
 void HashTable512::FreeEntry512(ENTRY512* e) {
     if(e) {
@@ -92,37 +77,47 @@ void HashTable512::FreeEntry512(ENTRY512* e) {
 }
 
 /**
- * @brief 重新分配哈希桶
+ * @brief Check if two 512-bit integers are equal
+ */
+bool HashTable512::IsEqual512(int512_t *a, int512_t *b) {
+    return memcmp(a, b, sizeof(int512_t)) == 0;
+}
+
+/**
+ * @brief Reallocate bucket
  */
 void HashTable512::ReAllocate512(uint64_t h, uint32_t add) {
     uint32_t newSize = E[h].maxItem + add;
     ENTRY512** newItems = (ENTRY512**)realloc(E[h].items, sizeof(ENTRY512*) * newSize);
     
-    if(!newItems) {
-        printf("[ERROR] Failed to reallocate hash bucket %llu\n", h);
-        return;
+    if(newItems) {
+        E[h].items = newItems;
+        totalMemory += sizeof(ENTRY512*) * add;
+        E[h].maxItem = newSize;
     }
-    
-    size_t oldMemory = E[h].maxItem * sizeof(ENTRY512*);
-    size_t newMemory = newSize * sizeof(ENTRY512*);
-    totalMemory = totalMemory - oldMemory + newMemory;
-    
-    E[h].items = newItems;
-    E[h].maxItem = newSize;
 }
 
 /**
- * @brief 添加条目到哈希表
+ * @brief Get statistics
+ */
+void HashTable512::GetStats(uint64_t *totalItems, uint64_t *totalMemory, double *loadFactor) {
+    *totalItems = this->totalItems;
+    *totalMemory = this->totalMemory;
+    *loadFactor = (double)this->totalItems / (double)HASH512_SIZE;
+}
+
+/**
+ * @brief Add entry to hash table
  */
 int HashTable512::Add(uint64_t h, int512_t *x, int512_t *d) {
     ENTRY512 *e = CreateEntry512(x, d);
-    if(!e) return ADD512_COLLISION; // 内存分配失败
+    if(!e) return ADD512_COLLISION; // Memory allocation failed
     
     return Add(h, e);
 }
 
 /**
- * @brief 添加条目到哈希表
+ * @brief Add entry to hash table
  */
 int HashTable512::Add(uint64_t h, ENTRY512* e) {
     if(E[h].maxItem == 0) {
@@ -142,7 +137,7 @@ int HashTable512::Add(uint64_t h, ENTRY512* e) {
         return ADD512_OK;
     }
 
-    // 检查重复
+    // Check for duplicates
     for(uint32_t i = 0; i < E[h].nbItem; i++) {
         if(IsEqual512(&E[h].items[i]->x, &e->x)) {
             FreeEntry512(e);
@@ -151,7 +146,7 @@ int HashTable512::Add(uint64_t h, ENTRY512* e) {
     }
 
     if(E[h].nbItem >= E[h].maxItem - 1) {
-        ReAllocate512(h, 16); // 扩展桶大小
+        ReAllocate512(h, 16); // Expand bucket size
     }
 
     E[h].items[E[h].nbItem] = e;
@@ -162,22 +157,22 @@ int HashTable512::Add(uint64_t h, ENTRY512* e) {
 }
 
 /**
- * @brief 计算距离和类型 - 支持509-bit距离
+ * @brief Calculate distance and type - supports 509-bit distance
  */
 void HashTable512::CalcDistAndType512(int512_t d, Int* kDist, uint32_t* kType) {
-    // 512-bit距离字段编码：
-    // b511=sign b510=kangaroo type, b509..b0 distance (509位距离！)
+    // 512-bit distance field encoding:
+    // b511=sign b510=kangaroo type, b509..b0 distance (509-bit distance!)
     
     *kType = (d.i64[7] & 0x4000000000000000ULL) != 0;  // bit 510
     int sign = (d.i64[7] & 0x8000000000000000ULL) != 0; // bit 511
     
-    // 清除标志位，保留509位距离
+    // Clear flag bits, keep 509-bit distance
     d.i64[7] &= 0x3FFFFFFFFFFFFFFFULL;
     
-    // 设置Int对象 - 支持完整的509位
+    // Set Int object - supports full 509 bits
     kDist->SetInt32(0);
     
-    // 复制所有8个64位字，支持完整的512位
+    // Copy all 8 64-bit words, supports full 512 bits
     for(int i = 0; i < 8 && i < NB64BLOCK; i++) {
         kDist->bits64[i] = d.i64[i];
     }
@@ -186,7 +181,7 @@ void HashTable512::CalcDistAndType512(int512_t d, Int* kDist, uint32_t* kType) {
         kDist->ModNegK1order();
     }
     
-    // 验证我们确实突破了125-bit限制
+    // Verify we truly breakthrough 125-bit limit
     int actualBits = kDist->GetBitLength();
     if(actualBits > 125) {
         static bool first_time = true;
@@ -198,7 +193,7 @@ void HashTable512::CalcDistAndType512(int512_t d, Int* kDist, uint32_t* kType) {
 }
 
 /**
- * @brief 查找碰撞
+ * @brief Find collision
  */
 ENTRY512* HashTable512::FindCollision(uint64_t h, int512_t *x, int512_t *d, uint32_t kType) {
     if(E[h].nbItem == 0) return nullptr;
@@ -206,9 +201,9 @@ ENTRY512* HashTable512::FindCollision(uint64_t h, int512_t *x, int512_t *d, uint
     for(uint32_t i = 0; i < E[h].nbItem; i++) {
         ENTRY512* entry = E[h].items[i];
         
-        // 检查位置匹配
+        // Check position match
         if(IsEqual512(&entry->x, x)) {
-            // 检查类型不同 (碰撞条件)
+            // Check different type (collision condition)
             uint32_t entryType = (entry->d.i64[7] & 0x4000000000000000ULL) != 0;
             if(entryType != kType) {
                 collisionCount++;
@@ -221,12 +216,12 @@ ENTRY512* HashTable512::FindCollision(uint64_t h, int512_t *x, int512_t *d, uint
 }
 
 /**
- * @brief 验证125-bit限制突破
+ * @brief Verify 125-bit limit breakthrough
  */
 bool HashTable512::VerifyLimitBreakthrough() {
     printf("[VERIFICATION] Testing 125-bit limit breakthrough...\n");
     
-    // 测试不同的大距离值
+    // Test different large distance values
     bool success = true;
     
     for(int bits = 126; bits <= 200; bits += 10) {
@@ -237,19 +232,19 @@ bool HashTable512::VerifyLimitBreakthrough() {
     }
     
     if(success) {
-        printf("[SUCCESS] ✅ 125-bit limit successfully broken!\n");
+        printf("[SUCCESS] 125-bit limit successfully broken!\n");
         printf("  - Supports distances up to 509 bits\n");
         printf("  - Original limit: 125 bits\n");
         printf("  - New capacity: 2^%d times larger\n", 509 - 125);
     } else {
-        printf("[FAILURE] ❌ 125-bit limit breakthrough failed\n");
+        printf("[FAILURE] 125-bit limit breakthrough failed\n");
     }
     
     return success;
 }
 
 /**
- * @brief 重置哈希表
+ * @brief Reset hash table
  */
 void HashTable512::Reset() {
     for(uint32_t h = 0; h < HASH512_SIZE; h++) {
@@ -258,60 +253,42 @@ void HashTable512::Reset() {
         }
         if(E[h].items) {
             free(E[h].items);
-            totalMemory -= E[h].maxItem * sizeof(ENTRY512*);
+            E[h].items = nullptr;
         }
-        E[h].items = nullptr;
         E[h].nbItem = 0;
         E[h].maxItem = 0;
     }
     totalItems = 0;
     collisionCount = 0;
-    printf("[HashTable512] Reset completed\n");
 }
 
 /**
- * @brief 获取统计信息
- */
-void HashTable512::GetStats(uint64_t* totalItems, uint64_t* totalMemory, double* loadFactor) {
-    *totalItems = this->totalItems;
-    *totalMemory = this->totalMemory;
-    *loadFactor = CalculateLoadFactor();
-}
-
-/**
- * @brief 计算负载因子
- */
-double HashTable512::CalculateLoadFactor() {
-    return (double)totalItems / HASH512_SIZE;
-}
-
-/**
- * @brief 保存到文件
+ * @brief Save to file
  */
 bool HashTable512::SaveToFile(const std::string& filename) {
-    // 简化实现，实际应该实现完整的序列化
+    // Simplified implementation, should implement complete serialization
     printf("[HashTable512] SaveToFile not implemented yet\n");
     return false;
 }
 
 /**
- * @brief 从文件加载
+ * @brief Load from file
  */
 bool HashTable512::LoadFromFile(const std::string& filename) {
-    // 简化实现，实际应该实现完整的反序列化
+    // Simplified implementation, should implement complete deserialization
     printf("[HashTable512] LoadFromFile not implemented yet\n");
     return false;
 }
 
 /**
- * @brief 测试大距离值
+ * @brief Test large distance values
  */
 bool HashTable512::TestLargeDistance(int bitLength) {
-    // 创建测试距离值
+    // Create test distance value
     int512_t testDistance;
     memset(&testDistance, 0, sizeof(testDistance));
-    
-    // 设置指定位长度的距离
+
+    // Set distance with specified bit length
     if(bitLength <= 64 && bitLength > 0) {
         testDistance.i64[0] = (1ULL << (bitLength - 1)) | 0x123456789ABCDEFULL;
     } else if(bitLength <= 128) {
@@ -320,7 +297,7 @@ bool HashTable512::TestLargeDistance(int bitLength) {
             testDistance.i64[1] = (1ULL << (bitLength - 64 - 1)) | 0x123456789ABCDEFULL;
         }
     } else {
-        // 更大的距离值
+        // Larger distance values
         for(int i = 0; i < (bitLength / 64); i++) {
             testDistance.i64[i] = 0xFFFFFFFFFFFFFFFFULL;
         }
@@ -329,17 +306,17 @@ bool HashTable512::TestLargeDistance(int bitLength) {
             testDistance.i64[bitLength / 64] = (1ULL << (remainingBits - 1)) | 0x123456789ABCDEFULL;
         }
     }
-    
-    // 测试距离计算
+
+    // Test distance calculation
     Int kDist;
     uint32_t kType;
     CalcDistAndType512(testDistance, &kDist, &kType);
-    
+
     int actualBits = kDist.GetBitLength();
-    bool success = (actualBits >= bitLength - 5); // 允许5位误差
-    
-    printf("  - %d-bit distance: %s (actual: %d bits)\n", 
-           bitLength, success ? "✅ PASS" : "❌ FAIL", actualBits);
-    
+    bool success = (actualBits >= bitLength - 5); // Allow 5-bit error
+
+    printf("  - %d-bit distance: %s (actual: %d bits)\n",
+           bitLength, success ? "PASS" : "FAIL", actualBits);
+
     return success;
 }

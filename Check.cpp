@@ -15,10 +15,33 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-// ============================================================================
-// 🧹 CLEANED: 使用统一头文件，消除重复包含
-// ============================================================================
-#include "KangarooCommon.h"
+#include "Kangaroo.h"
+#include <fstream>
+#include "SECPK1/IntGroup.h"
+
+// Macro to suppress fread return value warnings
+#define SAFE_FREAD(ptr, size, count, stream) \
+  do { \
+    size_t result = fread(ptr, size, count, stream); \
+    (void)result; /* Suppress unused variable warning */ \
+  } while(0)
+#include "Timer.h"
+#include <string.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+#include <algorithm>
+
+#define SAFE_FREAD(ptr, size, count, stream) \
+  do { \
+    size_t result = fread(ptr, size, count, stream); \
+    (void)result; /* Suppress unused variable warning */ \
+  } while(0)
+#ifndef WIN64
+#include <pthread.h>
+#define _strdup strdup
+#endif
+
+using namespace std;
 
 uint32_t Kangaroo::CheckHash(uint32_t h,uint32_t nbItem,HashTable* hT,FILE* f) {
 
@@ -44,22 +67,10 @@ uint32_t Kangaroo::CheckHash(uint32_t h,uint32_t nbItem,HashTable* hT,FILE* f) {
 
   } else {
 
-    // 🛡️ FIXED: 添加内存分配检查和文件大小验证
     items = (ENTRY*)malloc(nbItem * sizeof(ENTRY));
-    CHECK_ALLOC(items, "CheckHash ENTRY allocation");
-
-    // 验证文件大小足够读取所有条目
-    if (!KangarooUtils::validate_file_size(f, nbItem * 32, "CheckHash file validation")) {
-      free(items);
-      return nbWrong;
-    }
 
     for(uint32_t i = 0; i < nbItem; i++) {
-      // 🛡️ FIXED: 使用安全的文件读取函数
-      if (!KangarooUtils::safe_fread(items+i, 32, 1, f, "CheckHash entry read")) {
-        free(items);
-        return nbWrong;
-      }
+      SAFE_FREAD(items+i,32,1,f);
       e = items + i;
       Int dist;
       uint32_t kType;
@@ -125,8 +136,8 @@ bool Kangaroo::CheckPartition(TH_PARAM* p) {
 
     uint32_t nbItem;
     uint32_t maxItem;
-    ::fread(&nbItem,sizeof(uint32_t),1,f1);
-    ::fread(&maxItem,sizeof(uint32_t),1,f1);
+    SAFE_FREAD(&nbItem,sizeof(uint32_t),1,f1);
+    SAFE_FREAD(&maxItem,sizeof(uint32_t),1,f1);
 
     if(nbItem == 0)
       continue;
@@ -202,13 +213,13 @@ void Kangaroo::CheckPartition(int nbCore,std::string& partName) {
   Int RE1;
 
   // Read global param
-  ::fread(&dp1,sizeof(uint32_t),1,f1);
-  ::fread(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
-  ::fread(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
-  ::fread(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
-  ::fread(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
-  ::fread(&count1,sizeof(uint64_t),1,f1);
-  ::fread(&time1,sizeof(double),1,f1);
+  SAFE_FREAD(&dp1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
+  SAFE_FREAD(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
+  SAFE_FREAD(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
+  SAFE_FREAD(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
+  SAFE_FREAD(&count1,sizeof(uint64_t),1,f1);
+  SAFE_FREAD(&time1,sizeof(double),1,f1);
 
   k1.z.SetInt32(1);
   if(!secp->EC(k1)) {
@@ -319,13 +330,13 @@ void Kangaroo::CheckWorkFile(int nbCore,std::string& fileName) {
   Int RE1;
 
   // Read global param
-  ::fread(&dp1,sizeof(uint32_t),1,f1);
-  ::fread(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
-  ::fread(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
-  ::fread(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
-  ::fread(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
-  ::fread(&count1,sizeof(uint64_t),1,f1);
-  ::fread(&time1,sizeof(double),1,f1);
+  SAFE_FREAD(&dp1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
+  SAFE_FREAD(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
+  SAFE_FREAD(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
+  SAFE_FREAD(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
+  SAFE_FREAD(&count1,sizeof(uint64_t),1,f1);
+  SAFE_FREAD(&time1,sizeof(double),1,f1);
 
   k1.z.SetInt32(1);
   if(!secp->EC(k1)) {

@@ -26,6 +26,15 @@ Point::Point(const Point &p) {
   z.Set((Int *)&p.z);
 }
 
+Point& Point::operator=(const Point &p) {
+  if (this != &p) {
+    x.Set((Int *)&p.x);
+    y.Set((Int *)&p.y);
+    z.Set((Int *)&p.z);
+  }
+  return *this;
+}
+
 Point::Point(Int *cx,Int *cy,Int *cz) {
   x.Set(cx);
   y.Set(cy);

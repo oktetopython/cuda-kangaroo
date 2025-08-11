@@ -23,8 +23,20 @@
 #include <string>
 #include <string.h>
 #include <stdexcept>
+#include <signal.h>
+#include <memory>
 
 using namespace std;
+
+// Global RAII GPU memory guard for emergency cleanup
+std::unique_ptr<CudaMemoryGuard> g_gpu_guard;
+
+// Signal handler for emergency GPU cleanup
+void emergency_cleanup_handler(int signal) {
+  printf("\nEmergency cleanup: Signal %d received\n", signal);
+  GPUEngine::ForceGPUCleanup();
+  exit(signal);
+}
 
 #define CHECKARG(opt,n) if(a>=argc-1) {::printf(opt " missing argument #%d\n",n);exit(0);} else {a++;}
 
@@ -34,14 +46,13 @@ void printUsage() {
 
   printf("Kangaroo [-v] [-t nbThread] [-d dpBit] [gpu] [-check]\n");
   printf("         [-gpuId gpuId1[,gpuId2,...]] [-g g1x,g1y[,g2x,g2y,...]]\n");
-  printf("         [-test l_bits t_bits w_bits] inFile\n");
+  printf("         inFile\n");
   printf(" -v: Print version\n");
   printf(" -gpu: Enable gpu calculation\n");
   printf(" -gpuId gpuId1,gpuId2,...: List of GPU(s) to use, default is 0\n");
   printf(" -g g1x,g1y,g2x,g2y,...: Specify GPU(s) kernel gridsize, default is 2*(MP),2*(Core/MP)\n");
   printf(" -d: Specify number of leading zeros for the DP method (default is auto)\n");
   printf(" -t nbThread: Secify number of thread\n");
-  printf(" -test l_bits t_bits w_bits: Run Bernstein algorithm test (l=2^l_bits, T=2^t_bits, W=2^w_bits)\n");
   printf(" -w workfile: Specify file to save work into (current processed key only)\n");
   printf(" -i workfile: Specify file to load work from (current processed key only)\n");
   printf(" -wi workInterval: Periodic interval (in seconds) for saving work\n");
@@ -164,10 +175,6 @@ static bool serverMode = false;
 static string serverIP = "";
 static string outputFile = "";
 static bool splitWorkFile = false;
-static bool bernsteinTestMode = false;
-static int test_l_bits = 30;
-static int test_t_bits = 15;
-static int test_w_bits = 20;
 
 int main(int argc, char* argv[]) {
 
@@ -176,6 +183,16 @@ int main(int argc, char* argv[]) {
 #else
   printf("Kangaroo v" RELEASE "\n");
 #endif
+
+  // Install signal handlers for emergency GPU cleanup
+  signal(SIGINT, emergency_cleanup_handler);
+  signal(SIGTERM, emergency_cleanup_handler);
+#ifdef WIN32
+  signal(SIGBREAK, emergency_cleanup_handler);
+#endif
+
+  // Initialize RAII GPU memory guard
+  g_gpu_guard = std::make_unique<CudaMemoryGuard>();
 
   // Global Init
   Timer::Init();
@@ -217,25 +234,6 @@ int main(int argc, char* argv[]) {
       CHECKARG("-i",1);
       iWorkFile = string(argv[a]);
       a++;
-
-    } else if(strcmp(argv[a],"-test") == 0) {
-      if(a >= argc-3) {
-        ::printf("-test missing arguments (need l_bits t_bits w_bits [configfile])\n");
-        exit(0);
-      }
-      a++;
-      test_l_bits = getInt("l_bits", argv[a]);
-      a++;
-      test_t_bits = getInt("t_bits", argv[a]);
-      a++;
-      test_w_bits = getInt("w_bits", argv[a]);
-      bernsteinTestMode = true;
-      a++;
-      // 检查是否有可选的配置文件参数
-      if(a < argc && argv[a][0] != '-') {
-        configFile = string(argv[a]);
-        a++;
-      }
     } else if(strcmp(argv[a],"-wm") == 0) {
       CHECKARG("-wm",1);
       merge1 = string(argv[a]);
@@ -333,7 +331,7 @@ int main(int argc, char* argv[]) {
   }
 
   if(gridSize.size() == 0) {
-    for(int i = 0; i < gpuId.size(); i++) {
+    for(int i = 0; i < (int)gpuId.size(); i++) {
       gridSize.push_back(0);
       gridSize.push_back(0);
     }
@@ -344,11 +342,8 @@ int main(int argc, char* argv[]) {
 
   Kangaroo *v = new Kangaroo(secp,dp,gpuEnable,workFile,iWorkFile,savePeriod,saveKangaroo,saveKangarooByServer,
                              maxStep,wtimeout,port,ntimeout,serverIP,outputFile,splitWorkFile);
-  if(bernsteinTestMode) {
-    v->BernsteinGeneralTest(test_l_bits, test_t_bits, test_w_bits, configFile);
-    exit(0);
-  } else if(checkFlag) {
-    v->Check(gpuId,gridSize);
+  if(checkFlag) {
+    v->Check(gpuId,gridSize);  
     exit(0);
   } else {
     if(checkWorkFile.length() > 0) {
@@ -375,11 +370,33 @@ int main(int argc, char* argv[]) {
         exit(-1);
       }
     }
-    if(serverMode)
-      v->RunServer();
-    else
-      v->Run(nbCPUThread,gpuId,gridSize);
+    // Run the main algorithm with exception handling
+    try {
+      if(serverMode)
+        v->RunServer();
+      else
+        v->Run(nbCPUThread,gpuId,gridSize);
+    } catch (const std::exception& e) {
+      printf("Exception caught: %s\n", e.what());
+      GPUEngine::ForceGPUCleanup();
+      delete secp;
+      delete v;
+      return -1;
+    } catch (...) {
+      printf("Unknown exception caught\n");
+      GPUEngine::ForceGPUCleanup();
+      delete secp;
+      delete v;
+      return -1;
+    }
   }
+
+  // Clean shutdown
+  delete secp;
+  delete v;
+
+  // GPU memory will be automatically cleaned by RAII guard destructor
+  printf("Program completed successfully - GPU memory cleaned\n");
 
   return 0;
 

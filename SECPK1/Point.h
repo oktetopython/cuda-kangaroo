@@ -28,6 +28,7 @@ public:
   Point(Int *cx,Int *cy,Int *cz);
   Point(Int *cx, Int *cz);
   Point(const Point &p);
+  Point& operator=(const Point &p);
   ~Point();
   bool isZero();
   bool equals(Point &p);

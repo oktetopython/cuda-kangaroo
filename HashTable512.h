@@ -1,9 +1,9 @@
 /**
  * @file HashTable512.h
- * @brief 512-bit哈希表 - 真正突破125-bit限制
- * 
- * 替代原始的128-bit哈希表，支持真正的大范围搜索
- * 距离字段从125-bit扩展到509-bit (512-bit - 3个标志位)
+ * @brief 512-bit hash table - True breakthrough of 125-bit limit
+ *
+ * Replaces original 128-bit hash table, supports true large-range search
+ * Distance field extended from 125-bit to 509-bit (512-bit - 3 flag bits)
  */
 
 #ifndef HASHTABLE512_H
@@ -12,14 +12,14 @@
 #include <string>
 #include <vector>
 #include "SECPK1/Point.h"
-#include "HashTable.h"  // 包含int128_t定义
+#include "HashTable.h"  // [Chinese comment removed]int128_t定义
 
 #ifdef WIN64
 #include <Windows.h>
 #endif
 
-// 512-bit哈希表配置
-#define HASH512_SIZE_BIT 20  // 增大哈希表 (1M entries vs 256K)
+// 512-bit hash table configuration
+#define HASH512_SIZE_BIT 20  // Enlarged hash table (1M entries vs 256K)
 #define HASH512_SIZE (1<<HASH512_SIZE_BIT)
 #define HASH512_MASK (HASH512_SIZE-1)
 
@@ -30,147 +30,147 @@
 #define safe_free512(x) if(x) {free(x);x=NULL;}
 
 /**
- * @brief 512-bit整数联合体 - 支持多种访问方式
+ * @brief 512-bit integer union - Supports multiple access methods
  */
 union int512_s {
-    uint8_t  i8[64];   // 64个字节
-    uint16_t i16[32];  // 32个16位
-    uint32_t i32[16];  // 16个32位
-    uint64_t i64[8];   // 8个64位
+    uint8_t  i8[64];   // 64 bytes
+    uint16_t i16[32];  // 32 16-bit words
+    uint32_t i32[16];  // 16 32-bit words
+    uint64_t i64[8];   // 8 64-bit words
 };
 
 typedef union int512_s int512_t;
 
 /**
- * @brief 512-bit哈希表条目 - 突破125-bit限制
- * 
- * 距离字段编码：
- * b511=sign b510=kangaroo type, b509..b0 distance (509位距离！)
+ * @brief 512-bit hash table entry - Breakthrough of 125-bit limit
+ *
+ * Distance field encoding:
+ * b511=sign b510=kangaroo type, b509..b0 distance (509-bit distance!)
  */
 typedef struct {
-    int512_t  x;    // 袋鼠位置 (512-bit)
-    int512_t  d;    // 行走距离 (512-bit: 509位距离 + 3位标志)
+    int512_t  x;    // Kangaroo position (512-bit)
+    int512_t  d;    // Travel distance (512-bit: 509-bit distance + 3 flag bits)
 } ENTRY512;
 
 /**
- * @brief 哈希桶结构 - 支持动态扩展
+ * @brief Hash bucket structure - Supports dynamic expansion
  */
 typedef struct {
-    uint32_t   nbItem;     // 当前条目数
-    uint32_t   maxItem;    // 最大条目数
-    ENTRY512 **items;     // 条目指针数组
+    uint32_t   nbItem;     // Current number of entries
+    uint32_t   maxItem;    // Maximum number of entries
+    ENTRY512 **items;     // Entry pointer array
 } HASH_ENTRY512;
 
 /**
- * @brief 512-bit哈希表类 - 真正突破125-bit限制
+ * @brief 512-bit hash table class - True breakthrough of 125-bit limit
  */
 class HashTable512 {
 
 public:
     /**
-     * @brief 构造函数
+     * @brief Constructor
      */
     HashTable512();
-    
+
     /**
-     * @brief 析构函数
+     * @brief Destructor
      */
     ~HashTable512();
 
     /**
-     * @brief 添加条目到哈希表
-     * @param h 哈希值
-     * @param x 袋鼠位置 (512-bit)
-     * @param d 行走距离 (512-bit)
-     * @return ADD512_OK, ADD512_DUPLICATE, 或 ADD512_COLLISION
+     * @brief Add entry to hash table
+     * @param h Hash value
+     * @param x Kangaroo position (512-bit)
+     * @param d Travel distance (512-bit)
+     * @return ADD512_OK, ADD512_DUPLICATE, or ADD512_COLLISION
      */
     int Add(uint64_t h, int512_t *x, int512_t *d);
     int Add(uint64_t h, ENTRY512* e);
 
     /**
-     * @brief 计算距离和类型 - 支持509-bit距离
-     * @param d 512-bit距离字段
-     * @param kDist 输出：真实距离 (最大509位)
-     * @param kType 输出：袋鼠类型 (0=驯服, 1=野生)
+     * @brief Calculate distance and type - Supports 509-bit distance
+     * @param d 512-bit distance field
+     * @param kDist Output: Real distance (max 509 bits)
+     * @param kType Output: Kangaroo type (0=tame, 1=wild)
      */
     void CalcDistAndType512(int512_t d, Int* kDist, uint32_t* kType);
 
     /**
-     * @brief 查找碰撞
-     * @param h 哈希值
-     * @param x 袋鼠位置
-     * @param d 行走距离
-     * @param kType 袋鼠类型
-     * @return 找到的条目，或nullptr
+     * @brief Find collision
+     * @param h Hash value
+     * @param x Kangaroo position
+     * @param d Travel distance
+     * @param kType Kangaroo type
+     * @return Found entry, or nullptr
      */
     ENTRY512* FindCollision(uint64_t h, int512_t *x, int512_t *d, uint32_t kType);
 
     /**
-     * @brief 获取统计信息
+     * @brief Get statistics
      */
     void GetStats(uint64_t* totalItems, uint64_t* totalMemory, double* loadFactor);
 
     /**
-     * @brief 重置哈希表
+     * @brief Reset hash table
      */
     void Reset();
 
     /**
-     * @brief 保存到文件
+     * @brief Save to file
      */
     bool SaveToFile(const std::string& filename);
 
     /**
-     * @brief 从文件加载
+     * @brief Load from file
      */
     bool LoadFromFile(const std::string& filename);
 
     /**
-     * @brief 计算512-bit哈希值
+     * @brief Calculate 512-bit hash value
      */
     static uint64_t Hash512(int512_t *x);
 
     /**
-     * @brief 比较512-bit整数
+     * @brief Compare 512-bit integers
      */
     static bool IsEqual512(int512_t *a, int512_t *b);
 
     /**
-     * @brief 复制512-bit整数
+     * @brief Copy 512-bit integer
      */
     static void Copy512(int512_t *dest, int512_t *src);
 
     /**
-     * @brief 创建512-bit条目
+     * @brief Create 512-bit entry
      */
     ENTRY512* CreateEntry512(int512_t *x, int512_t *d);
 
     /**
-     * @brief 验证125-bit限制突破
-     * @return true 如果支持超过125-bit的距离
+     * @brief Verify 125-bit limit breakthrough
+     * @return true if supports distance beyond 125-bit
      */
     bool VerifyLimitBreakthrough();
 
     /**
-     * @brief 测试大距离值
-     * @param bitLength 测试的位长度 (126-509)
-     * @return true 如果成功处理大距离值
+     * @brief Test large distance values
+     * @param bitLength Test bit length (126-509)
+     * @return true if successfully handles large distance values
      */
     bool TestLargeDistance(int bitLength);
 
 private:
-    HASH_ENTRY512 *E;      // 哈希表数组
-    uint64_t totalItems;   // 总条目数
-    uint64_t totalMemory;  // 总内存使用
-    uint64_t collisionCount; // 碰撞计数
+    HASH_ENTRY512 *E;      // hash table[Chinese comment removed]
+    uint64_t totalItems;   // [Chinese comment removed]
+    uint64_t totalMemory;  // [Chinese comment removed]memory使用
+    uint64_t collisionCount; // collisioncount
 
     /**
-     * @brief 重新分配哈希桶
+     * @brief Reallocate hash bucket
      */
     void ReAllocate512(uint64_t h, uint32_t add);
 
     /**
-     * @brief 释放条目
+     * @brief Free entry
      */
     void FreeEntry512(ENTRY512* e);
 

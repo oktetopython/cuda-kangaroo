@@ -15,13 +15,26 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-// ============================================================================
-// 🧹 CLEANED: 使用统一头文件，消除重复包含
-// ============================================================================
-#include "KangarooCommon.h"
+#include "Kangaroo.h"
+#include <fstream>
+#include "SECPK1/IntGroup.h"
+#include "Timer.h"
+#include <string.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+#include <algorithm>
+
+#define SAFE_FREAD(ptr, size, count, stream) \
+  do { \
+    size_t result = fread(ptr, size, count, stream); \
+    (void)result; /* Suppress unused variable warning */ \
+  } while(0)
 #ifndef WIN64
 #include <dirent.h>
+#include <pthread.h>
 #endif
+
+using namespace std;
 
 bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest,bool printStat) {
 
@@ -58,13 +71,13 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
   Int RE1;
 
   // Read global param
-  ::fread(&dp1,sizeof(uint32_t),1,f1);
-  ::fread(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
-  ::fread(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
-  ::fread(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
-  ::fread(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
-  ::fread(&count1,sizeof(uint64_t),1,f1);
-  ::fread(&time1,sizeof(double),1,f1);
+  SAFE_FREAD(&dp1,sizeof(uint32_t),1,f1);
+  SAFE_FREAD(&RS1.bits64,32,1,f1); RS1.bits64[4] = 0;
+  SAFE_FREAD(&RE1.bits64,32,1,f1); RE1.bits64[4] = 0;
+  SAFE_FREAD(&k1.x.bits64,32,1,f1); k1.x.bits64[4] = 0;
+  SAFE_FREAD(&k1.y.bits64,32,1,f1); k1.y.bits64[4] = 0;
+  SAFE_FREAD(&count1,sizeof(uint64_t),1,f1);
+  SAFE_FREAD(&time1,sizeof(double),1,f1);
 
   k1.z.SetInt32(1);
   if(!secp->EC(k1)) {
@@ -90,13 +103,13 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
   Int RE2;
 
   // Read global param
-  ::fread(&dp2,sizeof(uint32_t),1,f2);
-  ::fread(&RS2.bits64,32,1,f2); RS2.bits64[4] = 0;
-  ::fread(&RE2.bits64,32,1,f2); RE2.bits64[4] = 0;
-  ::fread(&k2.x.bits64,32,1,f2); k2.x.bits64[4] = 0;
-  ::fread(&k2.y.bits64,32,1,f2); k2.y.bits64[4] = 0;
-  ::fread(&count2,sizeof(uint64_t),1,f2);
-  ::fread(&time2,sizeof(double),1,f2);
+  SAFE_FREAD(&dp2,sizeof(uint32_t),1,f2);
+  SAFE_FREAD(&RS2.bits64,32,1,f2); RS2.bits64[4] = 0;
+  SAFE_FREAD(&RE2.bits64,32,1,f2); RE2.bits64[4] = 0;
+  SAFE_FREAD(&k2.x.bits64,32,1,f2); k2.x.bits64[4] = 0;
+  SAFE_FREAD(&k2.y.bits64,32,1,f2); k2.y.bits64[4] = 0;
+  SAFE_FREAD(&count2,sizeof(uint64_t),1,f2);
+  SAFE_FREAD(&time2,sizeof(double),1,f2);
 
   if(v1 != v2) {
     ::printf("MergeWork: cannot merge workfile of different version\n");
@@ -325,7 +338,6 @@ void Kangaroo::MergeDir(std::string& dirName,std::string& dest) {
       return;
     }
 
-    int i = 0;
     ::printf("\n## File #1/%d\n",lgth - 1);
     bool end = MergeWork(listFiles[0].name,listFiles[1].name,dest,lgth == 2);
     for(int i = 2; i < lgth && !end; i++) {
