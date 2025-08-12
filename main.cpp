@@ -19,6 +19,7 @@
 #include "Timer.h"
 #include "SECPK1/SECP256k1.h"
 #include "GPU/GPUEngine.h"
+#include "CommonUtils.h"
 #include <fstream>
 #include <string>
 #include <string.h>
@@ -41,18 +42,7 @@ void emergency_cleanup_handler(int signal) {
 
 #define CHECKARG(opt,n) if(a>=argc-1) {::printf(opt " missing argument #%d\n",n);exit(0);} else {a++;}
 
-// Helper function: unified parameter error handling
-void printInvalidArgument(const string& name) {
-  printf("Invalid %s argument, number expected\n", name.c_str());
-  exit(-1);
-}
-
-// Constants for default values
-namespace Config {
-  const int DEFAULT_SERVER_PORT = 17403;
-  const int DEFAULT_TIMEOUT_MS = 3000;
-  const int DEFAULT_SAVE_PERIOD = 60;
-}
+// Use CommonUtils for unified error handling and constants
 
 // ------------------------------------------------------------------------------------------
 
@@ -94,69 +84,11 @@ void printUsage() {
 
 // ------------------------------------------------------------------------------------------
 
-int getInt(string name,char *v) {
-
-  int r;
-
-  try {
-
-    r = std::stoi(string(v));
-
-  } catch(std::invalid_argument&) {
-
-    printInvalidArgument(name);
-
-  }
-
-  return r;
-
-}
-
-double getDouble(string name,char *v) {
-
-  double r;
-
-  try {
-
-    r = std::stod(string(v));
-
-  } catch(std::invalid_argument&) {
-
-    printInvalidArgument(name);
-
-  }
-
-  return r;
-
-}
+// Use CommonUtils functions for parameter parsing
 
 // ------------------------------------------------------------------------------------------
 
-void getInts(string name,vector<int> &tokens,const string &text,char sep) {
-
-  size_t start = 0,end = 0;
-  tokens.clear();
-  int item;
-
-  try {
-
-    while((end = text.find(sep,start)) != string::npos) {
-      item = std::stoi(text.substr(start,end - start));
-      tokens.push_back(item);
-      start = end + 1;
-    }
-
-    item = std::stoi(text.substr(start));
-    tokens.push_back(item);
-
-  }
-  catch(std::invalid_argument &) {
-
-    printInvalidArgument(name);
-
-  }
-
-}
+// getInts function moved to CommonUtils
 
 // Argument parsing helper structure
 struct ArgHandler {
@@ -173,13 +105,13 @@ void assignStringArg(string& target, char** argv, int& a) {
 
 // Helper function for integer argument assignment
 void assignIntArg(int& target, const string& name, char** argv, int& a) {
-  target = getInt(name, argv[a]);
+  target = CommonUtils::getInt(name, argv[a]);
   a++;
 }
 
 // Helper function for uint32_t argument assignment
 void assignUInt32Arg(uint32_t& target, const string& name, char** argv, int& a) {
-  target = static_cast<uint32_t>(getInt(name, argv[a]));
+  target = static_cast<uint32_t>(CommonUtils::getInt(name, argv[a]));
   a++;
 }
 
@@ -196,7 +128,7 @@ static vector<int> gridSize;
 static string workFile = "";
 static string checkWorkFile = "";
 static string iWorkFile = "";
-static uint32_t savePeriod = Config::DEFAULT_SAVE_PERIOD;
+static uint32_t savePeriod = CommonUtils::Constants::DEFAULT_SAVE_PERIOD;
 static bool saveKangaroo = false;
 static bool saveKangarooByServer = false;
 static string merge1 = "";
@@ -205,9 +137,9 @@ static string mergeDest = "";
 static string mergeDir = "";
 static string infoFile = "";
 static double maxStep = 0.0;
-static int wtimeout = Config::DEFAULT_TIMEOUT_MS;
-static int ntimeout = Config::DEFAULT_TIMEOUT_MS;
-static int port = Config::DEFAULT_SERVER_PORT;
+static int wtimeout = CommonUtils::Constants::DEFAULT_TIMEOUT_MS;
+static int ntimeout = CommonUtils::Constants::DEFAULT_TIMEOUT_MS;
+static int port = CommonUtils::Constants::DEFAULT_SERVER_PORT;
 static bool serverMode = false;
 static string serverIP = "";
 static string outputFile = "";
@@ -287,7 +219,7 @@ int main(int argc, char* argv[]) {
       assignIntArg(ntimeout, "timeout", argv, a);
     } else if(strcmp(argv[a],"-m") == 0) {
       CHECKARG("-m",1);
-      maxStep = getDouble("maxStep",argv[a]);
+      maxStep = CommonUtils::getDouble("maxStep",argv[a]);
       a++;
     } else if(strcmp(argv[a],"-ws") == 0) {
       saveKangaroo = true;
@@ -312,11 +244,11 @@ int main(int argc, char* argv[]) {
       a++;
     } else if(strcmp(argv[a],"-gpuId") == 0) {
       CHECKARG("-gpuId",1);
-      getInts("gpuId",gpuId,string(argv[a]),',');
+      CommonUtils::getInts("gpuId",gpuId,string(argv[a]),',');
       a++;
     } else if(strcmp(argv[a],"-g") == 0) {
       CHECKARG("-g",1);
-      getInts("gridSize",gridSize,string(argv[a]),',');
+      CommonUtils::getInts("gridSize",gridSize,string(argv[a]),',');
       a++;
     } else if(strcmp(argv[a],"-v") == 0) {
       exit(0);

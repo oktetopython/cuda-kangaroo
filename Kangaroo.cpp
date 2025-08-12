@@ -27,6 +27,7 @@
 #include <stdint.h>
 #endif
 #include "Timer.h"
+#include "CommonUtils.h"
 #include <string.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -39,11 +40,7 @@ using namespace std;
 
 #define safe_delete_array(x) if(x) {delete[] x;x=NULL;}
 
-// Helper function for consistent error reporting
-bool Kangaroo::reportError(const std::string& context, const std::string& message) {
-  ::printf("Error: %s - %s\n", context.c_str(), message.c_str());
-  return false;
-}
+// Use CommonUtils for error reporting
 
 // ----------------------------------------------------------------------------
 
@@ -104,7 +101,7 @@ bool Kangaroo::ParseConfigFile(std::string &fileName) {
   // Check file
   FILE *fp = fopen(fileName.c_str(),"rb");
   if(fp == NULL) {
-    return reportError("File access", "Cannot open " + fileName + " - " + strerror(errno));
+    return CommonUtils::reportError("File access", "Cannot open " + fileName + " - " + strerror(errno));
   }
   fclose(fp);
 
@@ -130,7 +127,7 @@ bool Kangaroo::ParseConfigFile(std::string &fileName) {
   }
 
   if(lines.size()<3) {
-    return reportError("Config file", fileName + " not enough arguments");
+    return CommonUtils::reportError("Config file", fileName + " not enough arguments");
   }
 
   rangeStart.SetBase16((char *)lines[0].c_str());
@@ -140,7 +137,7 @@ bool Kangaroo::ParseConfigFile(std::string &fileName) {
     Point p;
     bool isCompressed;
     if( !secp->ParsePublicKeyHex(lines[i],p,isCompressed) ) {
-      return reportError("Config file", fileName + " error line " + std::to_string(i) + ": " + lines[i]);
+      return CommonUtils::reportError("Config file", fileName + " error line " + std::to_string(i) + ": " + lines[i]);
     }
     keysToSearch.push_back(p);
 

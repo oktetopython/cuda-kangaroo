@@ -27,6 +27,7 @@
   } while(0)
 
 #include "Timer.h"
+#include "CommonUtils.h"
 #include <string.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -250,7 +251,7 @@ void Kangaroo::CheckPartition(int nbCore,std::string& partName) {
 
   for(int p = 0; p < MERGE_PART; p += nbThread) {
 
-    printf(".");
+    CommonUtils::printProgress(".");
 
     for(int i = 0; i < nbThread; i++) {
       params[i].threadId = i;

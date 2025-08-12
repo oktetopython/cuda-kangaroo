@@ -162,8 +162,7 @@ public:
 
 private:
 
-  // Helper function for consistent error reporting
-  bool reportError(const std::string& context, const std::string& message);
+  // Use CommonUtils::reportError for error reporting
 
   bool IsDP(uint64_t x);
   void SetDP(int size);

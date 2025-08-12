@@ -19,6 +19,7 @@
 #include <fstream>
 #include "SECPK1/IntGroup.h"
 #include "Timer.h"
+#include "CommonUtils.h"
 #include <string.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -199,7 +200,7 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
 
   for(uint32_t h=0;h<HASH_SIZE && !endOfSearch;h++) {
 
-    if(h % (HASH_SIZE / 64) == 0) ::printf(".");
+    if(h % (HASH_SIZE / 64) == 0) CommonUtils::printProgress(".");
 
     int mStatus = HashTable::MergeH(h,f1,f2,f,&hDP,&hDuplicate,&d1,&type1,&d2,&type2);
     switch(mStatus) {
