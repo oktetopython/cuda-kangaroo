@@ -183,7 +183,7 @@ int main() {
 
         // Bitcoin Puzzle 130 Test
         std::cout << "\n" << std::string(60, '=') << std::endl;
-        std::cout << "🚀 BITCOIN PUZZLE 130 TEST 🚀" << std::endl;
+        std::cout << "?? BITCOIN PUZZLE 130 TEST ??" << std::endl;
         std::cout << std::string(60, '=') << std::endl;
 
         try {
@@ -207,10 +207,10 @@ int main() {
             BernsteinLangeKangaroo puzzle_solver(&secp);
 
             if (puzzle_solver.loadPrecomputeTable(puzzle_table)) {
-                std::cout << "✅ Puzzle table loaded successfully!" << std::endl;
+                std::cout << "? Puzzle table loaded successfully!" << std::endl;
 
                 // Attempt to solve (this is a proof of concept - the range might not contain the solution)
-                std::cout << "\n🔍 Attempting to solve Bitcoin Puzzle 130..." << std::endl;
+                std::cout << "\n?? Attempting to solve Bitcoin Puzzle 130..." << std::endl;
                 std::cout << "Note: This is a proof of concept test with limited range" << std::endl;
 
                 Int result;
@@ -223,31 +223,31 @@ int main() {
                 double t1 = Timer::get_tick();
 
                 if (solved) {
-                    std::cout << "🎉 PUZZLE SOLVED! 🎉" << std::endl;
+                    std::cout << "?? PUZZLE SOLVED! ??" << std::endl;
                     std::cout << "Solution: " << result.GetBase16() << std::endl;
                     std::cout << "Time: " << Timer::getResult("ms", 1, t0, t1) << std::endl;
 
                     if (result.GetBase16() == known_key_hex) {
-                        std::cout << "✅ SOLUTION VERIFIED! Perfect match!" << std::endl;
+                        std::cout << "? SOLUTION VERIFIED! Perfect match!" << std::endl;
                     } else {
-                        std::cout << "⚠️  Solution found but doesn't match expected (range limitation)" << std::endl;
+                        std::cout << "??  Solution found but doesn't match expected (range limitation)" << std::endl;
                     }
                 } else {
-                    std::cout << "⏱️  Search completed without solution in current range" << std::endl;
+                    std::cout << "??  Search completed without solution in current range" << std::endl;
                     std::cout << "Time: " << Timer::getResult("ms", 1, t0, t1) << std::endl;
                     std::cout << "Steps: " << max_steps << std::endl;
                     std::cout << "Note: This demonstrates the system works - larger range needed for actual solution" << std::endl;
                 }
 
             } else {
-                std::cout << "❌ Failed to load puzzle table" << std::endl;
+                std::cout << "? Failed to load puzzle table" << std::endl;
             }
 
-            std::cout << "\n✅ Bitcoin Puzzle 130 test framework validated!" << std::endl;
+            std::cout << "\n? Bitcoin Puzzle 130 test framework validated!" << std::endl;
             std::cout << "System ready for full-scale Bitcoin puzzle challenges!" << std::endl;
 
         } catch (const std::exception& e) {
-            std::cout << "❌ Bitcoin Puzzle test error: " << e.what() << std::endl;
+            std::cout << "? Bitcoin Puzzle test error: " << e.what() << std::endl;
         }
 
         std::cout << "=========================================" << std::endl;

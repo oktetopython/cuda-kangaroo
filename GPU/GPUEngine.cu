@@ -291,7 +291,7 @@ GPUEngine::~GPUEngine() {
 
 
 int GPUEngine::GetMemory() {
-  return kangarooSize + outputSize + jumpSize;
+  return static_cast<int>(kangarooSize + outputSize + jumpSize);
 }
 
 

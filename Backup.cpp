@@ -36,7 +36,7 @@
 
 using namespace std;
 
-// è¾…åŠ©å‡½æ•°ï¼šç»Ÿä¸€çš„ç³»ç»Ÿé”™è¯¯å¤„ç†
+// ¸¨Öúº¯Êı£ºÍ³Ò»µÄÏµÍ³´íÎó´¦Àí
 static void PrintSystemError() {
   ::printf("%s\n", ::strerror(errno));
 }

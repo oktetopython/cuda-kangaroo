@@ -67,7 +67,7 @@ public:
         double dp_rate = total_steps > 0 ? (double)dps_found / total_steps * 100 : 0;
         
         std::lock_guard<std::mutex> lock(stats_mutex);
-        std::cout << "📊 Performance: " << std::fixed << std::setprecision(0) 
+        std::cout << "?? Performance: " << std::fixed << std::setprecision(0) 
                   << steps_per_second << " steps/sec, "
                   << std::fixed << std::setprecision(2) << dp_rate << "% DP rate, "
                   << dps_found << " DPs found, "
@@ -123,7 +123,7 @@ public:
         
         std::ofstream file(checkpoint_file, std::ios::binary);
         if (!file.is_open()) {
-            std::cerr << "❌ ERROR: Cannot save checkpoint to " << checkpoint_file << std::endl;
+            std::cerr << "? ERROR: Cannot save checkpoint to " << checkpoint_file << std::endl;
             return false;
         }
         
@@ -202,11 +202,11 @@ public:
         : secp(secp_instance), checkpoint_manager(checkpoint_file), has_target(false) {}
     
     bool loadPrecomputeTable(const std::string& filename) {
-        std::cout << "📂 Loading precompute table: " << filename << std::endl;
+        std::cout << "?? Loading precompute table: " << filename << std::endl;
         
         PrecomputeTableLoader loader;
         if (!loader.loadTable(filename, header, table_entries)) {
-            std::cerr << "❌ ERROR: Failed to load precompute table!" << std::endl;
+            std::cerr << "? ERROR: Failed to load precompute table!" << std::endl;
             return false;
         }
         
@@ -216,8 +216,8 @@ public:
             hash_index[table_entries[i].hash_value].push_back(i);
         }
         
-        std::cout << "✅ Loaded " << table_entries.size() << " precompute entries" << std::endl;
-        std::cout << "📊 Hash index contains " << hash_index.size() << " unique hash values" << std::endl;
+        std::cout << "? Loaded " << table_entries.size() << " precompute entries" << std::endl;
+        std::cout << "?? Hash index contains " << hash_index.size() << " unique hash values" << std::endl;
         
         // Set puzzle parameters based on table
         puzzle_start.SetBase16("4000000000000000000000000000000000");  // 2^134 for Puzzle 135
@@ -232,16 +232,16 @@ public:
     void setTargetPoint(const Point& target) {
         target_point = target;
         has_target = true;
-        std::cout << "🎯 Target point set for puzzle solving" << std::endl;
+        std::cout << "?? Target point set for puzzle solving" << std::endl;
     }
     
     bool solvePuzzle(Int& result, uint64_t max_steps = 100000000, bool enable_checkpoints = true) {
         if (!has_target) {
-            std::cerr << "❌ ERROR: No target point set!" << std::endl;
+            std::cerr << "? ERROR: No target point set!" << std::endl;
             return false;
         }
         
-        std::cout << "\n🚀 Starting Bitcoin puzzle solving..." << std::endl;
+        std::cout << "\n?? Starting Bitcoin puzzle solving..." << std::endl;
         std::cout << "Max steps: " << max_steps << std::endl;
         std::cout << "Checkpoints: " << (enable_checkpoints ? "enabled" : "disabled") << std::endl;
         
@@ -256,7 +256,7 @@ public:
         uint64_t steps_completed = 0;
         
         if (enable_checkpoints && checkpoint_manager.loadCheckpoint(checkpoint)) {
-            std::cout << "📁 Loaded checkpoint from " << checkpoint.timestamp << std::endl;
+            std::cout << "?? Loaded checkpoint from " << checkpoint.timestamp << std::endl;
             std::cout << "Resuming from step " << checkpoint.total_steps << std::endl;
             current_key = checkpoint.current_key;
             current_point = checkpoint.current_point;
@@ -268,7 +268,7 @@ public:
             current_key = puzzle_start;
             current_key.Add(&random_offset);
             current_point = secp->ComputePublicKey(&current_key);
-            std::cout << "🎲 Starting from random point in puzzle range" << std::endl;
+            std::cout << "?? Starting from random point in puzzle range" << std::endl;
         }
         
         uint32_t dp_mask = (1U << header.dp_mask_bits) - 1;
@@ -295,7 +295,7 @@ public:
             if (current_point.equals(target_point)) {
                 result = current_key;
                 solution_found = true;
-                std::cout << "\n🎉 SOLUTION FOUND!" << std::endl;
+                std::cout << "\n?? SOLUTION FOUND!" << std::endl;
                 std::cout << "Private key: 0x" << result.GetBase16() << std::endl;
                 return true;
             }
@@ -318,7 +318,7 @@ public:
                         if (entry.x.n[0] == current_point.x.bits64[0] &&
                             entry.y.n[0] == current_point.y.bits64[0]) {
                             
-                            std::cout << "\n🎯 COLLISION DETECTED!" << std::endl;
+                            std::cout << "\n?? COLLISION DETECTED!" << std::endl;
                             std::cout << "Collision at step " << step << std::endl;
                             std::cout << "Analyzing collision for solution..." << std::endl;
                             
@@ -353,19 +353,19 @@ public:
                     new_checkpoint.timestamp = std::ctime(&time_t);
                     
                     checkpoint_manager.saveCheckpoint(new_checkpoint);
-                    std::cout << "💾 Checkpoint saved" << std::endl;
+                    std::cout << "?? Checkpoint saved" << std::endl;
                 }
             }
         }
         
-        std::cout << "\n⏹️ Search completed without finding solution" << std::endl;
+        std::cout << "\n?? Search completed without finding solution" << std::endl;
         monitor.printStats(true);
         return false;
     }
     
     void stopSolving() {
         should_stop = true;
-        std::cout << "\n🛑 Stop signal received" << std::endl;
+        std::cout << "\n?? Stop signal received" << std::endl;
     }
     
     bool isSolutionFound() const {

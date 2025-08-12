@@ -73,7 +73,7 @@ public:
      * Calculate Bernstein-Lange parameters using real formulas
      */
     void calculateBLParameters() {
-        // W = Î± * sqrt(L/T) where Î± â‰ˆ 1.33 (Bernstein-Lange paper)
+        // W = ¦Á * sqrt(L/T) where ¦Á ¡Ö 1.33 (Bernstein-Lange paper)
         double alpha = 1.33;
         double W_theoretical = alpha * sqrt((double)L / T);
         W = (int)round(W_theoretical);
@@ -82,12 +82,12 @@ public:
         // For efficiency, use 1/8 = 12.5% probability
         dp_mask_bits = 3;
         
-        std::cout << "ðŸ”§ Real EC Bernstein-Lange Parameters:" << std::endl;
+        std::cout << "?? Real EC Bernstein-Lange Parameters:" << std::endl;
         std::cout << "   L = " << L << " (2^" << log2(L) << ")" << std::endl;
         std::cout << "   T = " << T << std::endl;
         std::cout << "   W = " << W << " (theoretical: " << W_theoretical << ")" << std::endl;
         std::cout << "   DP mask bits = " << dp_mask_bits << std::endl;
-        std::cout << "   DP probability = 1/" << (1ULL << dp_mask_bits) << " â‰ˆ " 
+        std::cout << "   DP probability = 1/" << (1ULL << dp_mask_bits) << " ¡Ö " 
                   << (100.0 / (1ULL << dp_mask_bits)) << "%" << std::endl;
     }
     
@@ -271,7 +271,7 @@ public:
             return false;
         }
         
-        std::cout << "âœ… Real EC Precompute Table Generated Successfully!" << std::endl;
+        std::cout << "? Real EC Precompute Table Generated Successfully!" << std::endl;
         std::cout << "   File: " << output_filename << std::endl;
         std::cout << "   Entries: " << entries.size() << std::endl;
         std::cout << "   Generation time: " << duration.count() << " ms" << std::endl;

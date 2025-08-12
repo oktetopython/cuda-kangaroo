@@ -111,7 +111,7 @@ string GetNetworkError() {
 
 #endif
 
-// è¾…åŠ©å‡½æ•°ï¼šç»Ÿä¸€çš„ç³»ç»Ÿé”™è¯¯å¤„ç†
+// ¸¨Öúº¯Êý£ºÍ³Ò»µÄÏµÍ³´íÎó´¦Àí
 static void PrintSystemError() {
   printf("%s\n", ::strerror(errno));
 }
@@ -679,7 +679,9 @@ void Kangaroo::AcceptConnections(SOCKET server_soc) {
       TH_PARAM *p = (TH_PARAM *)malloc(sizeof(TH_PARAM));
       ::memset(p,0,sizeof(TH_PARAM));
       char info[256];
-      ::sprintf(info,"%s:%d",inet_ntoa(client_add.sin_addr),ntohs(client_add.sin_port));
+      char addr_str[INET_ADDRSTRLEN];
+      inet_ntop(AF_INET, &client_add.sin_addr, addr_str, INET_ADDRSTRLEN);
+      ::sprintf(info,"%s:%d",addr_str,ntohs(client_add.sin_port));
 #ifdef WIN64
       p->clientInfo = ::_strdup(info);
 #else
@@ -797,18 +799,24 @@ bool Kangaroo::ConnectToServer(SOCKET *retSock) {
 
     InitSocket();
 
-    struct hostent *host_info;
-    host_info = gethostbyname(serverIp.c_str());
-    if(host_info == NULL) {
+    struct addrinfo hints, *result;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int status = getaddrinfo(serverIp.c_str(), NULL, &hints, &result);
+    if(status != 0) {
       lastError = "Unknown host:" + serverIp;
       hostInfo = NULL;
       hostInfoLength = 0;
       return false;
     } else {
-      hostInfoLength = host_info->h_length;
+      struct sockaddr_in* addr_in = (struct sockaddr_in*)result->ai_addr;
+      hostInfoLength = sizeof(addr_in->sin_addr);
       hostInfo = (char *)malloc(hostInfoLength);
-      ::memcpy(hostInfo,host_info->h_addr,hostInfoLength);
-      hostAddrType = host_info->h_addrtype;
+      ::memcpy(hostInfo, &addr_in->sin_addr, hostInfoLength);
+      hostAddrType = AF_INET;
+      freeaddrinfo(result);
     }
 
   }

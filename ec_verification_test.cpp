@@ -20,7 +20,7 @@ private:
 public:
     ECVerificationTest() {
         secp.Init();
-        std::cout << "✅ SECPK1 library initialized" << std::endl;
+        std::cout << "? SECPK1 library initialized" << std::endl;
     }
     
     // Test 1: Verify known elliptic curve computations
@@ -96,7 +96,7 @@ public:
         bool addition_correct = (sum_point.x.bits64[0] == expected_sum.x.bits64[0] && 
                                 sum_point.y.bits64[0] == expected_sum.y.bits64[0]);
         
-        std::cout << "Addition verification: " << (addition_correct ? "✅ PASSED" : "❌ FAILED") << std::endl;
+        std::cout << "Addition verification: " << (addition_correct ? "? PASSED" : "? FAILED") << std::endl;
         
         return addition_correct;
     }
@@ -118,7 +118,7 @@ public:
             
             // Verify the operation produced a valid point
             if (public_key.x.bits64[0] == 0 && public_key.y.bits64[0] == 0) {
-                std::cout << "❌ Invalid point generated at iteration " << i << std::endl;
+                std::cout << "? Invalid point generated at iteration " << i << std::endl;
                 return false;
             }
         }
@@ -127,7 +127,7 @@ public:
         double elapsed = end_time - start_time;
         double ops_per_sec = num_operations / elapsed;
         
-        std::cout << "✅ Performance Results:" << std::endl;
+        std::cout << "? Performance Results:" << std::endl;
         std::cout << "  Total time: " << std::fixed << std::setprecision(3) << elapsed << " seconds" << std::endl;
         std::cout << "  Operations/sec: " << std::fixed << std::setprecision(0) << ops_per_sec << std::endl;
         std::cout << "  Average time per operation: " << std::fixed << std::setprecision(6) 
@@ -157,14 +157,14 @@ public:
                   << public_key.y.bits64[1] << public_key.y.bits64[0] << std::endl;
         
         // This verifies that we can compute the correct public key for a known Bitcoin puzzle
-        std::cout << "✅ Bitcoin Puzzle 130 computation completed" << std::endl;
+        std::cout << "? Bitcoin Puzzle 130 computation completed" << std::endl;
         
         return true;
     }
     
     // Run all verification tests
     bool runAllTests() {
-        std::cout << "🔍 Elliptic Curve Operations Verification Test" << std::endl;
+        std::cout << "?? Elliptic Curve Operations Verification Test" << std::endl;
         std::cout << "=============================================" << std::endl;
         std::cout << "This test verifies that our implementation uses real libsecp256k1 operations" << std::endl;
         
@@ -175,13 +175,13 @@ public:
         all_passed &= testPerformanceBenchmark();
         all_passed &= testBitcoinPuzzle130();
         
-        std::cout << "\n🏁 VERIFICATION RESULTS:" << std::endl;
+        std::cout << "\n?? VERIFICATION RESULTS:" << std::endl;
         std::cout << "========================" << std::endl;
         if (all_passed) {
-            std::cout << "✅ ALL TESTS PASSED - Real libsecp256k1 operations confirmed!" << std::endl;
-            std::cout << "✅ Our Bernstein-Lange implementation uses authentic elliptic curve operations" << std::endl;
+            std::cout << "? ALL TESTS PASSED - Real libsecp256k1 operations confirmed!" << std::endl;
+            std::cout << "? Our Bernstein-Lange implementation uses authentic elliptic curve operations" << std::endl;
         } else {
-            std::cout << "❌ SOME TESTS FAILED - Please investigate elliptic curve implementation" << std::endl;
+            std::cout << "? SOME TESTS FAILED - Please investigate elliptic curve implementation" << std::endl;
         }
         
         return all_passed;

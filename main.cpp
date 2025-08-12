@@ -40,7 +40,7 @@ void emergency_cleanup_handler(int signal) {
 
 #define CHECKARG(opt,n) if(a>=argc-1) {::printf(opt " missing argument #%d\n",n);exit(0);} else {a++;}
 
-// 辅助函数：统一的参数错误处理
+// Helper function: unified parameter error handling
 void printInvalidArgument(const string& name) {
   printf("Invalid %s argument, number expected\n", name.c_str());
   exit(-1);

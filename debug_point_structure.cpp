@@ -23,7 +23,7 @@ public:
         secp.Init();
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         rng.seed(seed);
-        std::cout << "✅ Point Structure Debug initialized" << std::endl;
+        std::cout << "? Point Structure Debug initialized" << std::endl;
     }
     
     void debugPointStructure() {
@@ -135,7 +135,7 @@ public:
     }
     
     void runAllDebugTests() {
-        std::cout << "🔍 Point Structure and Hash Calculation Debug" << std::endl;
+        std::cout << "?? Point Structure and Hash Calculation Debug" << std::endl;
         std::cout << "=============================================" << std::endl;
         
         debugPointStructure();
@@ -143,7 +143,7 @@ public:
         debugHashCalculation();
         debugSequentialKeys();
         
-        std::cout << "\n🏁 DEBUG ANALYSIS COMPLETE" << std::endl;
+        std::cout << "\n?? DEBUG ANALYSIS COMPLETE" << std::endl;
         std::cout << "==========================" << std::endl;
         std::cout << "Review the output above to identify why DP detection is failing." << std::endl;
     }

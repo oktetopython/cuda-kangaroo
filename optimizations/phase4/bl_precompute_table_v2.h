@@ -88,8 +88,8 @@ public:
     /**
      * Calculate theoretical walk length W
      * 
-     * Uses the Bernstein-Lange formula: W = Î± * sqrt(L/T)
-     * where Î± â‰ˆ 1.33 is the theoretical constant
+     * Uses the Bernstein-Lange formula: W = ¦Á * sqrt(L/T)
+     * where ¦Á ¡Ö 1.33 is the theoretical constant
      */
     static int32_t calculateW(uint64_t L, uint64_t T) {
         double alpha = 1.33;
@@ -112,9 +112,9 @@ public:
      * Calculate DP mask bits for target table size
      * 
      * We want approximately T distinguished points from a larger candidate pool.
-     * If we generate N candidates, we want P(DP) â‰ˆ T/N
+     * If we generate N candidates, we want P(DP) ¡Ö T/N
      * For mask bits k, P(DP) = 1/2^k
-     * So k â‰ˆ log2(N/T)
+     * So k ¡Ö log2(N/T)
      */
     static int32_t calculateDPMaskBits(uint64_t T) {
         // For typical usage, we generate about 8-16x more candidates than target
@@ -133,7 +133,7 @@ public:
      * Print parameter analysis for debugging
      */
     static void printParameterAnalysis(const PrecomputeTableHeader& header) {
-        std::cout << "\nðŸ“Š Bernstein-Lange Parameter Analysis" << std::endl;
+        std::cout << "\n?? Bernstein-Lange Parameter Analysis" << std::endl;
         std::cout << "=====================================" << std::endl;
         std::cout << "Problem Configuration:" << std::endl;
         std::cout << "  Group order (ell): " << header.ell << std::endl;
@@ -144,7 +144,7 @@ public:
         std::cout << "\nCalculated Parameters:" << std::endl;
         std::cout << "  Walk length (W): " << header.W << std::endl;
         std::cout << "  DP mask bits: " << header.dp_mask_bits << std::endl;
-        std::cout << "  DP probability: 1/" << (1ULL << header.dp_mask_bits) << " â‰ˆ " 
+        std::cout << "  DP probability: 1/" << (1ULL << header.dp_mask_bits) << " ¡Ö " 
                   << (100.0 / (1ULL << header.dp_mask_bits)) << "%" << std::endl;
         
         std::cout << "\nTheoretical Analysis:" << std::endl;
@@ -162,29 +162,29 @@ public:
      */
     static bool validateParameters(const PrecomputeTableHeader& header) {
         if (header.magic != BL_TABLE_MAGIC) {
-            std::cerr << "âŒ Invalid magic number" << std::endl;
+            std::cerr << "? Invalid magic number" << std::endl;
             return false;
         }
         
         if (header.version != 1) {
-            std::cerr << "âŒ Unsupported version: " << header.version << std::endl;
+            std::cerr << "? Unsupported version: " << header.version << std::endl;
             return false;
         }
         
         if (header.L == 0 || header.T == 0) {
-            std::cerr << "âŒ Invalid L or T parameters" << std::endl;
+            std::cerr << "? Invalid L or T parameters" << std::endl;
             return false;
         }
         
         if (header.W <= 0 || header.dp_mask_bits <= 0) {
-            std::cerr << "âŒ Invalid W or dp_mask_bits parameters" << std::endl;
+            std::cerr << "? Invalid W or dp_mask_bits parameters" << std::endl;
             return false;
         }
         
         // Check if parameters are reasonable
         double W_theory = 1.33 * sqrt((double)header.L / (double)header.T);
         if (header.W > W_theory * 3 || header.W < W_theory * 0.3) {
-            std::cerr << "âš ï¸  Warning: W parameter seems unreasonable (theory: " << W_theory << ", actual: " << header.W << ")" << std::endl;
+            std::cerr << "??  Warning: W parameter seems unreasonable (theory: " << W_theory << ", actual: " << header.W << ")" << std::endl;
         }
         
         return true;
@@ -199,7 +199,7 @@ namespace BLParameterSets {
     inline PrecomputeTableHeader createTestSet20() {
         return BLParameters::calculateParameters(
             0xFFFFFFFFFFFFFFFFULL,  // ell (simplified)
-            1ULL << 20,             // L = 2^20 â‰ˆ 1M
+            1ULL << 20,             // L = 2^20 ¡Ö 1M
             0,                      // A = 0
             1024                    // T = 1024
         );
@@ -208,7 +208,7 @@ namespace BLParameterSets {
     inline PrecomputeTableHeader createTestSet30() {
         return BLParameters::calculateParameters(
             0xFFFFFFFFFFFFFFFFULL,  // ell (simplified)
-            1ULL << 30,             // L = 2^30 â‰ˆ 1B
+            1ULL << 30,             // L = 2^30 ¡Ö 1B
             0,                      // A = 0
             4096                    // T = 4096
         );
@@ -217,7 +217,7 @@ namespace BLParameterSets {
     inline PrecomputeTableHeader createTestSet40() {
         return BLParameters::calculateParameters(
             0xFFFFFFFFFFFFFFFFULL,  // ell (simplified)
-            1ULL << 40,             // L = 2^40 â‰ˆ 1T
+            1ULL << 40,             // L = 2^40 ¡Ö 1T
             0,                      // A = 0
             8192                    // T = 8192
         );

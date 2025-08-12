@@ -36,12 +36,12 @@ void printUsage(const char* program_name) {
  */
 bool validateParameters(int L_bits, uint64_t T) {
     if (L_bits < 10 || L_bits > 60) {
-        std::cerr << "❌ Error: L_bits must be between 10 and 60" << std::endl;
+        std::cerr << "? Error: L_bits must be between 10 and 60" << std::endl;
         return false;
     }
     
     if (T < 64 || T > 1000000) {
-        std::cerr << "❌ Error: T must be between 64 and 1,000,000" << std::endl;
+        std::cerr << "? Error: T must be between 64 and 1,000,000" << std::endl;
         return false;
     }
     
@@ -50,12 +50,12 @@ bool validateParameters(int L_bits, uint64_t T) {
     double theoretical_W = 1.33 * sqrt((double)L / T);
     
     if (theoretical_W < 10) {
-        std::cerr << "⚠️  Warning: Theoretical W = " << theoretical_W 
+        std::cerr << "??  Warning: Theoretical W = " << theoretical_W 
                   << " is very small. Consider reducing T." << std::endl;
     }
     
     if (theoretical_W > 100000) {
-        std::cerr << "⚠️  Warning: Theoretical W = " << theoretical_W 
+        std::cerr << "??  Warning: Theoretical W = " << theoretical_W 
                   << " is very large. Consider increasing T." << std::endl;
     }
     
@@ -77,25 +77,25 @@ void printTheoreticalAnalysis(int L_bits, uint64_t T) {
     double theoretical_W = 1.33 * sqrt((double)L / T);
     double expected_candidates = 8.0 * T;  // Bernstein-Lange paper
     
-    std::cout << "📊 Theoretical Analysis (Bernstein-Lange Paper)" << std::endl;
+    std::cout << "?? Theoretical Analysis (Bernstein-Lange Paper)" << std::endl;
     std::cout << "===============================================" << std::endl;
     std::cout << "Problem Configuration:" << std::endl;
     std::cout << "  Search interval L = 2^" << L_bits << " = " << L << std::endl;
     std::cout << "  Target table size T = " << T << std::endl;
     std::cout << std::endl;
     std::cout << "Theoretical Parameters:" << std::endl;
-    std::cout << "  Walk length W ≈ " << std::fixed << std::setprecision(2) << theoretical_W << std::endl;
+    std::cout << "  Walk length W �� " << std::fixed << std::setprecision(2) << theoretical_W << std::endl;
     std::cout << "  DP probability = 1/8 = 12.5%" << std::endl;
-    std::cout << "  Expected candidates ≈ " << std::fixed << std::setprecision(0) << expected_candidates << std::endl;
+    std::cout << "  Expected candidates �� " << std::fixed << std::setprecision(0) << expected_candidates << std::endl;
     std::cout << std::endl;
     std::cout << "Performance Estimates:" << std::endl;
-    std::cout << "  Average steps per DP ≈ " << std::fixed << std::setprecision(0) << theoretical_W << std::endl;
-    std::cout << "  Total EC operations ≈ " << std::fixed << std::setprecision(0) << (T * theoretical_W) << std::endl;
+    std::cout << "  Average steps per DP �� " << std::fixed << std::setprecision(0) << theoretical_W << std::endl;
+    std::cout << "  Total EC operations �� " << std::fixed << std::setprecision(0) << (T * theoretical_W) << std::endl;
     std::cout << std::endl;
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "🔧 Real Elliptic Curve Bernstein-Lange Table Generator" << std::endl;
+    std::cout << "?? Real Elliptic Curve Bernstein-Lange Table Generator" << std::endl;
     std::cout << "=====================================================" << std::endl;
     std::cout << "Using REAL secp256k1 elliptic curve operations" << std::endl;
     std::cout << "Based on Bernstein-Lange paper formulas" << std::endl;
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
     printTheoreticalAnalysis(L_bits, T);
     
     // Confirm with user
-    std::cout << "⚠️  This will use REAL elliptic curve operations and may take significant time." << std::endl;
+    std::cout << "??  This will use REAL elliptic curve operations and may take significant time." << std::endl;
     std::cout << "Continue? (y/N): ";
     std::string confirm;
     std::getline(std::cin, confirm);
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
     
     // Create generator and generate table
     std::cout << std::endl;
-    std::cout << "🚀 Starting Real EC Table Generation..." << std::endl;
+    std::cout << "?? Starting Real EC Table Generation..." << std::endl;
     std::cout << "=======================================" << std::endl;
     
     try {
@@ -162,31 +162,31 @@ int main(int argc, char* argv[]) {
         
         if (success) {
             std::cout << std::endl;
-            std::cout << "🎉 Real EC Table Generation Completed Successfully!" << std::endl;
+            std::cout << "?? Real EC Table Generation Completed Successfully!" << std::endl;
             std::cout << "==================================================" << std::endl;
-            std::cout << "✅ Output file: " << output_file << std::endl;
-            std::cout << "✅ Total time: " << total_duration.count() << " seconds" << std::endl;
-            std::cout << "✅ Using REAL secp256k1 elliptic curve operations" << std::endl;
-            std::cout << "✅ Based on Bernstein-Lange paper formulas" << std::endl;
+            std::cout << "? Output file: " << output_file << std::endl;
+            std::cout << "? Total time: " << total_duration.count() << " seconds" << std::endl;
+            std::cout << "? Using REAL secp256k1 elliptic curve operations" << std::endl;
+            std::cout << "? Based on Bernstein-Lange paper formulas" << std::endl;
             std::cout << std::endl;
-            std::cout << "🔍 Next Steps:" << std::endl;
+            std::cout << "?? Next Steps:" << std::endl;
             std::cout << "1. Verify table: ./verify_bl_table_v2 " << output_file << std::endl;
             std::cout << "2. Test solver: ./test_bl_online_solver_v2 --table=" << output_file << std::endl;
             std::cout << "3. Run DLP tests with known discrete logarithms" << std::endl;
             std::cout << std::endl;
-            std::cout << "🏆 This table uses REAL elliptic curve arithmetic!" << std::endl;
+            std::cout << "?? This table uses REAL elliptic curve arithmetic!" << std::endl;
             
             return 0;
         } else {
-            std::cerr << "❌ Table generation failed!" << std::endl;
+            std::cerr << "? Table generation failed!" << std::endl;
             return 1;
         }
         
     } catch (const std::exception& e) {
-        std::cerr << "❌ Exception during generation: " << e.what() << std::endl;
+        std::cerr << "? Exception during generation: " << e.what() << std::endl;
         return 1;
     } catch (...) {
-        std::cerr << "❌ Unknown error during generation" << std::endl;
+        std::cerr << "? Unknown error during generation" << std::endl;
         return 1;
     }
 }

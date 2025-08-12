@@ -136,10 +136,10 @@ public:
             std::string found_key = result.GetBase16();
             
             if (found_key == known_private_key_hex) {
-                std::cout << "✅ SOLUTION VERIFIED! Found key matches known key!" << std::endl;
+                std::cout << "? SOLUTION VERIFIED! Found key matches known key!" << std::endl;
                 return true;
             } else {
-                std::cout << "❌ Solution verification failed!" << std::endl;
+                std::cout << "? Solution verification failed!" << std::endl;
                 std::cout << "Expected: " << known_private_key_hex << std::endl;
                 std::cout << "Found:    " << found_key << std::endl;
                 return false;
@@ -152,35 +152,35 @@ public:
     }
     
     bool runFullTest() {
-        std::cout << "\n🚀 Starting Bitcoin Puzzle 130 Full Test 🚀" << std::endl;
+        std::cout << "\n?? Starting Bitcoin Puzzle 130 Full Test ??" << std::endl;
         
         Point target_point;
         
         // Step 1: Generate target public key
         if (!generateTargetPublicKey(target_point)) {
-            std::cout << "❌ Failed at step 1: Generate target public key" << std::endl;
+            std::cout << "? Failed at step 1: Generate target public key" << std::endl;
             return false;
         }
         
         // Step 2: Generate precompute table
         if (!generatePrecomputeTable()) {
-            std::cout << "❌ Failed at step 2: Generate precompute table" << std::endl;
+            std::cout << "? Failed at step 2: Generate precompute table" << std::endl;
             return false;
         }
         
         // Step 3: Load precompute table
         if (!loadPrecomputeTable()) {
-            std::cout << "❌ Failed at step 3: Load precompute table" << std::endl;
+            std::cout << "? Failed at step 3: Load precompute table" << std::endl;
             return false;
         }
         
         // Step 4: Solve puzzle
         if (!solvePuzzle(target_point)) {
-            std::cout << "❌ Failed at step 4: Solve puzzle" << std::endl;
+            std::cout << "? Failed at step 4: Solve puzzle" << std::endl;
             return false;
         }
         
-        std::cout << "\n🎉 ALL TESTS PASSED! Bitcoin Puzzle 130 system validated! 🎉" << std::endl;
+        std::cout << "\n?? ALL TESTS PASSED! Bitcoin Puzzle 130 system validated! ??" << std::endl;
         return true;
     }
 };
@@ -195,15 +195,15 @@ int main() {
         bool success = test.runFullTest();
         
         if (success) {
-            std::cout << "\n✅ SUCCESS: System ready for Bitcoin puzzle challenges!" << std::endl;
+            std::cout << "\n? SUCCESS: System ready for Bitcoin puzzle challenges!" << std::endl;
             return 0;
         } else {
-            std::cout << "\n❌ FAILURE: System needs debugging" << std::endl;
+            std::cout << "\n? FAILURE: System needs debugging" << std::endl;
             return 1;
         }
         
     } catch (const std::exception& e) {
-        std::cout << "❌ Exception: " << e.what() << std::endl;
+        std::cout << "? Exception: " << e.what() << std::endl;
         return 1;
     }
 }

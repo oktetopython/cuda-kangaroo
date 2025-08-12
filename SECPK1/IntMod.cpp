@@ -660,7 +660,7 @@ void Int::ModSqrt() {
   } else if ((_P.bits64[0] & 3) == 1) {
 
     // Tonelli-Shanks algorithm for modular square root
-    // when P โก 1 (mod 4)
+    // when P กิ 1 (mod 4)
     uint64_t e=0;
     Int S(&_P);
     S.SubOne();

@@ -30,7 +30,7 @@ public:
         secp.Init();
         auto seed = std::chrono::high_resolution_clock::now().time_since_epoch().count();
         rng.seed(seed);
-        std::cout << "✅ BL Algorithm Verification initialized" << std::endl;
+        std::cout << "? BL Algorithm Verification initialized" << std::endl;
     }
     
     // Test 1: Verify parameter calculation formulas
@@ -71,7 +71,7 @@ public:
         bool w_reasonable = (calculated_W > 0 && calculated_W < 1000);
         bool dp_reasonable = (dp_mask_bits >= 3 && dp_mask_bits <= 16);
         
-        std::cout << "Parameter validation: " << (w_reasonable && dp_reasonable ? "✅ PASSED" : "❌ FAILED") << std::endl;
+        std::cout << "Parameter validation: " << (w_reasonable && dp_reasonable ? "? PASSED" : "? FAILED") << std::endl;
         
         return w_reasonable && dp_reasonable;
     }
@@ -133,7 +133,7 @@ public:
         
         // Accept up to 20% error for statistical variation
         bool dp_detection_correct = (error < 0.20);
-        std::cout << "DP detection verification: " << (dp_detection_correct ? "✅ PASSED" : "❌ FAILED") << std::endl;
+        std::cout << "DP detection verification: " << (dp_detection_correct ? "? PASSED" : "? FAILED") << std::endl;
         
         return dp_detection_correct;
     }
@@ -189,7 +189,7 @@ public:
         bool walk_correct = (current_point.x.bits64[0] == expected_point.x.bits64[0] &&
                             current_point.y.bits64[0] == expected_point.y.bits64[0]);
         
-        std::cout << "Random walk verification: " << (walk_correct ? "✅ PASSED" : "❌ FAILED") << std::endl;
+        std::cout << "Random walk verification: " << (walk_correct ? "? PASSED" : "? FAILED") << std::endl;
         
         return walk_correct;
     }
@@ -223,14 +223,14 @@ public:
             }
         }
         
-        std::cout << "Step size consistency: " << (consistent ? "✅ PASSED" : "❌ FAILED") << std::endl;
+        std::cout << "Step size consistency: " << (consistent ? "? PASSED" : "? FAILED") << std::endl;
         
         return consistent;
     }
     
     // Run all algorithm verification tests
     bool runAllTests() {
-        std::cout << "🔍 Bernstein-Lange Algorithm Core Logic Verification" << std::endl;
+        std::cout << "?? Bernstein-Lange Algorithm Core Logic Verification" << std::endl;
         std::cout << "===================================================" << std::endl;
         std::cout << "This test verifies the correctness of our BL algorithm implementation" << std::endl;
         
@@ -241,13 +241,13 @@ public:
         all_passed &= testRandomWalkStep();
         all_passed &= testStepSizeCalculation();
         
-        std::cout << "\n🏁 ALGORITHM VERIFICATION RESULTS:" << std::endl;
+        std::cout << "\n?? ALGORITHM VERIFICATION RESULTS:" << std::endl;
         std::cout << "==================================" << std::endl;
         if (all_passed) {
-            std::cout << "✅ ALL TESTS PASSED - Bernstein-Lange algorithm logic is correct!" << std::endl;
-            std::cout << "✅ Parameter calculations, DP detection, and random walks are working properly" << std::endl;
+            std::cout << "? ALL TESTS PASSED - Bernstein-Lange algorithm logic is correct!" << std::endl;
+            std::cout << "? Parameter calculations, DP detection, and random walks are working properly" << std::endl;
         } else {
-            std::cout << "❌ SOME TESTS FAILED - Please investigate algorithm implementation" << std::endl;
+            std::cout << "? SOME TESTS FAILED - Please investigate algorithm implementation" << std::endl;
         }
         
         return all_passed;

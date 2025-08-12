@@ -39,16 +39,16 @@ public:
         puzzle_length.Sub(&puzzle_start);
         puzzle_length.Add(1);  // Include end point
         
-        std::cout << "🎯 Bitcoin Puzzle 135 Bernstein-Lange Generator" << std::endl;
+        std::cout << "?? Bitcoin Puzzle 135 Bernstein-Lange Generator" << std::endl;
         std::cout << "=============================================" << std::endl;
         std::cout << "Range Start: 0x" << puzzle_start.GetBase16() << std::endl;
         std::cout << "Range End:   0x" << puzzle_end.GetBase16() << std::endl;
-        std::cout << "Range Length: 2^134 ≈ " << std::scientific << std::setprecision(3) 
+        std::cout << "Range Length: 2^134 �� " << std::scientific << std::setprecision(3) 
                   << pow(2.0, 134) << std::endl;
     }
     
     bool generatePuzzle135Table(uint64_t T = 65536, const std::string& output_filename = "puzzle135_bl_table.bin") {
-        std::cout << "\n🔧 Generating Puzzle 135 Precompute Table..." << std::endl;
+        std::cout << "\n?? Generating Puzzle 135 Precompute Table..." << std::endl;
         std::cout << "Target table size (T): " << T << std::endl;
         
         // Calculate theoretical parameters using the correct API
@@ -72,7 +72,7 @@ public:
         std::vector<PrecomputeTableEntry> entries;
         entries.reserve(T);
         
-        std::cout << "\n🚀 Starting real elliptic curve precompute generation..." << std::endl;
+        std::cout << "\n?? Starting real elliptic curve precompute generation..." << std::endl;
         Timer::Init();
         start_time = Timer::get_tick();
 
@@ -156,7 +156,7 @@ public:
         double end_time = Timer::get_tick();
         double generation_time = end_time - start_time;
         
-        std::cout << "\n✅ Precompute generation completed!" << std::endl;
+        std::cout << "\n? Precompute generation completed!" << std::endl;
         std::cout << "Generated entries: " << entries.size() << "/" << T << std::endl;
         std::cout << "Success rate: " << std::fixed << std::setprecision(1) 
                   << (100.0 * entries.size() / T) << "%" << std::endl;
@@ -166,11 +166,11 @@ public:
                   << (entries.size() / generation_time) << " entries/sec" << std::endl;
         
         // Save table
-        std::cout << "\n💾 Saving Puzzle 135 table to: " << output_filename << std::endl;
+        std::cout << "\n?? Saving Puzzle 135 table to: " << output_filename << std::endl;
         
         PrecomputeTableSaver saver;
         if (!saver.saveTable(output_filename, header, entries)) {
-            std::cerr << "❌ ERROR: Failed to save table!" << std::endl;
+            std::cerr << "? ERROR: Failed to save table!" << std::endl;
             return false;
         }
         
@@ -180,16 +180,16 @@ public:
         std::vector<PrecomputeTableEntry> verify_entries;
         
         if (!loader.loadTable(output_filename, verify_header, verify_entries)) {
-            std::cerr << "❌ ERROR: Failed to verify saved table!" << std::endl;
+            std::cerr << "? ERROR: Failed to verify saved table!" << std::endl;
             return false;
         }
         
-        std::cout << "✅ Table verification successful!" << std::endl;
+        std::cout << "? Table verification successful!" << std::endl;
         std::cout << "File size: " << (sizeof(header) + entries.size() * sizeof(PrecomputeTableEntry)) 
                   << " bytes" << std::endl;
         
         // Display final parameters
-        std::cout << "\n📊 Final Puzzle 135 Table Parameters:" << std::endl;
+        std::cout << "\n?? Final Puzzle 135 Table Parameters:" << std::endl;
         std::cout << "Magic: 0x" << std::hex << verify_header.magic << std::dec << std::endl;
         std::cout << "Version: " << verify_header.version << std::endl;
         std::cout << "Range: 2^" << verify_header.ell << std::endl;
@@ -202,13 +202,13 @@ public:
         std::cout << "DP rate: " << std::fixed << std::setprecision(2) 
                   << (100.0 / (1 << verify_header.dp_mask_bits)) << "%" << std::endl;
         
-        std::cout << "\n🎯 Puzzle 135 table ready for challenge!" << std::endl;
+        std::cout << "\n?? Puzzle 135 table ready for challenge!" << std::endl;
         return true;
     }
 };
 
 int main(int argc, char* argv[]) {
-    std::cout << "🎯 Bitcoin Puzzle 135 Bernstein-Lange Challenge" << std::endl;
+    std::cout << "?? Bitcoin Puzzle 135 Bernstein-Lange Challenge" << std::endl;
     std::cout << "===============================================" << std::endl;
     std::cout << "This generator creates optimized precompute tables for Bitcoin Puzzle 135" << std::endl;
     std::cout << "Range: [2^134, 2^135-1]" << std::endl;
@@ -244,15 +244,15 @@ int main(int argc, char* argv[]) {
         Puzzle135BLGenerator generator;
         
         if (generator.generatePuzzle135Table(T, output_file)) {
-            std::cout << "\n🎉 SUCCESS! Puzzle 135 table generated successfully!" << std::endl;
+            std::cout << "\n?? SUCCESS! Puzzle 135 table generated successfully!" << std::endl;
             std::cout << "Ready to challenge Bitcoin Puzzle 135!" << std::endl;
             return 0;
         } else {
-            std::cerr << "\n❌ FAILED! Table generation failed!" << std::endl;
+            std::cerr << "\n? FAILED! Table generation failed!" << std::endl;
             return 1;
         }
     } catch (const std::exception& e) {
-        std::cerr << "❌ ERROR: " << e.what() << std::endl;
+        std::cerr << "? ERROR: " << e.what() << std::endl;
         return 1;
     }
 }

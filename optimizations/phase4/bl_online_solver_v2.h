@@ -70,19 +70,19 @@ public:
      * Load V2 format precompute table
      */
     bool loadPrecomputeTableV2(const std::string& filename) {
-        std::cout << "\n📖 Loading V2 Format Precompute Table" << std::endl;
+        std::cout << "\n?? Loading V2 Format Precompute Table" << std::endl;
         std::cout << "=====================================" << std::endl;
         std::cout << "File: " << filename << std::endl;
         
         if (!PrecomputeTableLoader::loadTable(filename, header, precompute_table)) {
-            std::cerr << "❌ Failed to load V2 format table" << std::endl;
+            std::cerr << "? Failed to load V2 format table" << std::endl;
             return false;
         }
         
         table_loaded = true;
         
         // Print loaded table information
-        std::cout << "✅ V2 Format Table Loaded Successfully!" << std::endl;
+        std::cout << "? V2 Format Table Loaded Successfully!" << std::endl;
         std::cout << "   Problem size L: 2^" << static_cast<int>(log2(header.L)) << std::endl;
         std::cout << "   Target size T: " << header.T << std::endl;
         std::cout << "   W parameter: " << header.W << std::endl;
@@ -100,11 +100,11 @@ public:
      */
     bool buildHashIndex() {
         if (!table_loaded) {
-            std::cerr << "❌ Cannot build index: table not loaded" << std::endl;
+            std::cerr << "? Cannot build index: table not loaded" << std::endl;
             return false;
         }
         
-        std::cout << "\n🔧 Building Hash Index" << std::endl;
+        std::cout << "\n?? Building Hash Index" << std::endl;
         std::cout << "======================" << std::endl;
         
         hash_index.clear();
@@ -116,7 +116,7 @@ public:
         
         index_built = true;
         
-        std::cout << "✅ Hash index built successfully" << std::endl;
+        std::cout << "? Hash index built successfully" << std::endl;
         std::cout << "   Unique hash values: " << hash_index.size() << std::endl;
         std::cout << "   Total entries indexed: " << precompute_table.size() << std::endl;
         
@@ -140,14 +140,14 @@ public:
      * Solve DLP using simplified random walk (for testing)
      */
     DLPSolutionV2 solveDLPSimplified(uint64_t target_discrete_log) {
-        std::cout << "\n🎯 Starting Simplified DLP Search" << std::endl;
+        std::cout << "\n?? Starting Simplified DLP Search" << std::endl;
         std::cout << "=================================" << std::endl;
         std::cout << "Target discrete log: " << target_discrete_log << std::endl;
         
         DLPSolutionV2 solution;
         
         if (!table_loaded || !index_built) {
-            std::cerr << "❌ Table not loaded or index not built" << std::endl;
+            std::cerr << "? Table not loaded or index not built" << std::endl;
             return solution;
         }
         
@@ -197,7 +197,7 @@ public:
                 auto it = hash_index.find(point_hash);
                 if (it != hash_index.end()) {
                     // Found collision!
-                    std::cout << "🎉 Collision found at step " << steps << "!" << std::endl;
+                    std::cout << "?? Collision found at step " << steps << "!" << std::endl;
                     std::cout << "   Hash: 0x" << std::hex << point_hash << std::dec << std::endl;
                     std::cout << "   Current discrete log: " << current_discrete_log << std::endl;
                     
@@ -223,7 +223,7 @@ public:
                         solution.collision_hash = point_hash;
                         solution.table_entry_index = table_index;
                         
-                        std::cout << "✅ SOLUTION FOUND!" << std::endl;
+                        std::cout << "? SOLUTION FOUND!" << std::endl;
                         break;
                     } else {
                         std::cout << "   Not the target solution, continuing search..." << std::endl;
@@ -242,7 +242,7 @@ public:
         solution.search_time_ms = duration.count() / 1000.0;
         
         if (!solution.found) {
-            std::cout << "❌ Solution not found after " << steps << " steps" << std::endl;
+            std::cout << "? Solution not found after " << steps << " steps" << std::endl;
         }
         
         return solution;
@@ -252,11 +252,11 @@ public:
      * Print solution details
      */
     void printSolution(const DLPSolutionV2& solution) {
-        std::cout << "\n📊 DLP Solution Results" << std::endl;
+        std::cout << "\n?? DLP Solution Results" << std::endl;
         std::cout << "=======================" << std::endl;
         
         if (solution.found) {
-            std::cout << "✅ Solution found!" << std::endl;
+            std::cout << "? Solution found!" << std::endl;
             std::cout << "   Discrete logarithm: " << solution.discrete_log << std::endl;
             std::cout << "   Search steps: " << solution.search_steps << std::endl;
             std::cout << "   Search time: " << std::fixed << std::setprecision(3) 
@@ -270,7 +270,7 @@ public:
                           << steps_per_second << " steps/second" << std::endl;
             }
         } else {
-            std::cout << "❌ Solution not found" << std::endl;
+            std::cout << "? Solution not found" << std::endl;
             std::cout << "   Search steps: " << solution.search_steps << std::endl;
             std::cout << "   Search time: " << std::fixed << std::setprecision(3) 
                       << solution.search_time_ms << " ms" << std::endl;
@@ -282,11 +282,11 @@ public:
      */
     void printTableStatistics() {
         if (!table_loaded) {
-            std::cout << "❌ No table loaded" << std::endl;
+            std::cout << "? No table loaded" << std::endl;
             return;
         }
         
-        std::cout << "\n📈 Table Statistics" << std::endl;
+        std::cout << "\n?? Table Statistics" << std::endl;
         std::cout << "==================" << std::endl;
         std::cout << "Problem parameters:" << std::endl;
         std::cout << "   L = " << header.L << " (2^" << static_cast<int>(log2(header.L)) << ")" << std::endl;
