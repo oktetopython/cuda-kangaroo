@@ -19,6 +19,9 @@
 #include <fstream>
 #include "SECPK1/IntGroup.h"
 
+// Global variable for network error messages
+static std::string lastError;
+
 // Macro to suppress fread return value warnings
 #define SAFE_FREAD(ptr, size, count, stream) \
   do { \
@@ -108,10 +111,20 @@ string GetNetworkError() {
 
 #endif
 
-#define GET(name,s,b,bl,t)  if( (nbRead=Read(s,(char *)(b),bl,t))<0 ) { ::printf("\nReadError(" name "): %s\n",lastError.c_str()); isConnected = false; close_socket(s); return false; }
-#define PUT(name,s,b,bl,t)  if( (nbWrite=Write(s,(char *)(b),bl,t))<0 ) { ::printf("\nWriteError(" name "): %s\n",lastError.c_str()); isConnected = false; close_socket(s); return false; }
-#define GETFREE(name,s,b,bl,t,x)  if( (nbRead=Read(s,(char *)(b),bl,t))<0 ) { ::printf("\nReadError(" name "): %s\n",lastError.c_str()); isConnected = false; ::free(x); close_socket(s); return false; }
-#define PUTFREE(name,s,b,bl,t,x)  if( (nbWrite=Write(s,(char *)(b),bl,t))<0 ) { ::printf("\nWriteError(" name "): %s\n",lastError.c_str()); isConnected = false; ::free(x); close_socket(s); return false; }
+// 辅助函数：统一的系统错误处理
+static void PrintSystemError() {
+  printf("%s\n", ::strerror(errno));
+}
+
+// Helper function: unified network error handling
+static void PrintNetworkError(const char* operation) {
+  printf("\n%s: %s\n", operation, lastError.c_str());
+}
+
+#define GET(name,s,b,bl,t)  if( (nbRead=Read(s,(char *)(b),bl,t))<0 ) { PrintNetworkError("ReadError(" name ")"); isConnected = false; close_socket(s); return false; }
+#define PUT(name,s,b,bl,t)  if( (nbWrite=Write(s,(char *)(b),bl,t))<0 ) { PrintNetworkError("WriteError(" name ")"); isConnected = false; close_socket(s); return false; }
+#define GETFREE(name,s,b,bl,t,x)  if( (nbRead=Read(s,(char *)(b),bl,t))<0 ) { PrintNetworkError("ReadError(" name ")"); isConnected = false; ::free(x); close_socket(s); return false; }
+#define PUTFREE(name,s,b,bl,t,x)  if( (nbWrite=Write(s,(char *)(b),bl,t))<0 ) { PrintNetworkError("WriteError(" name ")"); isConnected = false; ::free(x); close_socket(s); return false; }
 
 void sig_handler(int signo) {
   if(signo == SIGINT) {
@@ -360,21 +373,21 @@ bool Kangaroo::HandleRequest(TH_PARAM *p) {
       if(f == NULL) {
         // No backup
         ::printf("LoadKang: Cannot open %s for reading\n",fileName);
-        ::printf("%s\n",::strerror(errno));
+        PrintSystemError();
         PUT("nbKangaroo",p->clientSock,&nbKangaroo,sizeof(uint64_t),ntimeout);
         break;
       }
 
       if(::fread(&header,sizeof(uint32_t),1,f) != 1) {
         ::printf("LoadKang: Cannot read from %s\n",fileName);
-        ::printf("%s\n",::strerror(errno));
+        PrintSystemError();
         ::fclose(f);
         CLIENT_ABORT();
       }
 
       if(header!=HEADKS) {
         ::printf("LoadKang: %s Not a compressed kangaroo file\n",fileName);
-        ::printf("%s\n",::strerror(errno));
+        PrintSystemError();
         ::fclose(f);
         CLIENT_ABORT();
       }
@@ -450,13 +463,13 @@ bool Kangaroo::HandleRequest(TH_PARAM *p) {
       FILE* f = fopen(fileNameTmp,"wb");
       if(f == NULL) {
         ::printf("\nCannot open %s for writing\n",fileNameTmp);
-        ::printf("%s\n",::strerror(errno));
+        PrintSystemError();
         CLIENT_ABORT();
       }
 
       if(::fwrite(&header,sizeof(uint32_t),1,f) != 1) {
         ::printf("\nCannot write to %s\n",fileNameTmp);
-        ::printf("%s\n",::strerror(errno));
+        PrintSystemError();
         ::fclose(f);
         CLIENT_ABORT();
       }

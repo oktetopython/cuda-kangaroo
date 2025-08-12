@@ -4,6 +4,8 @@
  */
 
 #include "HashTable512.h"
+#include "SmartAllocator.h"
+#include "UnifiedErrorHandler.h"
 #include "SECPK1/Int.h"
 #include <cstring>
 #include <cstdlib>
@@ -13,11 +15,19 @@
  * @brief Constructor
  */
 HashTable512::HashTable512() {
-    E = (HASH_ENTRY512 *)calloc(HASH512_SIZE, sizeof(HASH_ENTRY512));
+    E = static_cast<HASH_ENTRY512*>(SmartAllocator::allocate(HASH512_SIZE * sizeof(HASH_ENTRY512)));
+    if(!E) {
+        LOG_MEMORY_ERROR("allocation", HASH512_SIZE * sizeof(HASH_ENTRY512));
+        throw std::bad_alloc();
+    }
+
+    // 初始化为零
+    memset(E, 0, HASH512_SIZE * sizeof(HASH_ENTRY512));
+
     totalItems = 0;
     totalMemory = HASH512_SIZE * sizeof(HASH_ENTRY512);
     collisionCount = 0;
-    
+
     printf("[HashTable512] Initialized 512-bit hash table\n");
     printf("  - Hash size: %d entries (2^%d)\n", HASH512_SIZE, HASH512_SIZE_BIT);
     printf("  - Distance bits: 509 (vs original 125)\n");
@@ -30,7 +40,7 @@ HashTable512::HashTable512() {
 HashTable512::~HashTable512() {
     Reset();
     if(E) {
-        free(E);
+        SmartAllocator::deallocate(E);
         E = nullptr;
     }
 }
@@ -56,12 +66,20 @@ uint64_t HashTable512::Hash512(int512_t *x) {
  * @brief Create 512-bit entry
  */
 ENTRY512* HashTable512::CreateEntry512(int512_t *x, int512_t *d) {
-    ENTRY512* e = (ENTRY512*)malloc(sizeof(ENTRY512));
-    if(!e) return nullptr;
-    
+    if(!x || !d) {
+        LOG_ERROR(ErrorType::HASH_TABLE, "CreateEntry512: null parameters");
+        return nullptr;
+    }
+
+    ENTRY512* e = static_cast<ENTRY512*>(SmartAllocator::allocate(sizeof(ENTRY512)));
+    if(!e) {
+        LOG_MEMORY_ERROR("allocation", sizeof(ENTRY512));
+        return nullptr;
+    }
+
     memcpy(&e->x, x, sizeof(int512_t));
     memcpy(&e->d, d, sizeof(int512_t));
-    
+
     totalMemory += sizeof(ENTRY512);
     return e;
 }
@@ -72,7 +90,7 @@ ENTRY512* HashTable512::CreateEntry512(int512_t *x, int512_t *d) {
 void HashTable512::FreeEntry512(ENTRY512* e) {
     if(e) {
         totalMemory -= sizeof(ENTRY512);
-        free(e);
+        SmartAllocator::deallocate(e);
     }
 }
 
@@ -87,14 +105,43 @@ bool HashTable512::IsEqual512(int512_t *a, int512_t *b) {
  * @brief Reallocate bucket
  */
 void HashTable512::ReAllocate512(uint64_t h, uint32_t add) {
-    uint32_t newSize = E[h].maxItem + add;
-    ENTRY512** newItems = (ENTRY512**)realloc(E[h].items, sizeof(ENTRY512*) * newSize);
-    
-    if(newItems) {
-        E[h].items = newItems;
-        totalMemory += sizeof(ENTRY512*) * add;
-        E[h].maxItem = newSize;
+    if(h >= HASH512_SIZE) {
+        LOG_HASH_ERROR("reallocation - invalid hash", h);
+        return;
     }
+
+    // 防止整数溢出
+    if(E[h].maxItem > UINT32_MAX - add) {
+        LOG_HASH_ERROR("reallocation - integer overflow", h);
+        return;
+    }
+
+    uint32_t newSize = E[h].maxItem + add;
+    ENTRY512** newItems = static_cast<ENTRY512**>(
+        SmartAllocator::allocate(sizeof(ENTRY512*) * newSize)
+    );
+
+    if(!newItems) {
+        LOG_HASH_ERROR("reallocation - memory allocation failed", h);
+        return;
+    }
+
+    // 初始化新内存
+    memset(newItems, 0, sizeof(ENTRY512*) * newSize);
+
+    // 拷贝现有数据
+    if(E[h].items && E[h].nbItem > 0) {
+        memcpy(newItems, E[h].items, sizeof(ENTRY512*) * E[h].nbItem);
+    }
+
+    // 释放旧内存
+    if(E[h].items) {
+        SmartAllocator::deallocate(E[h].items);
+    }
+
+    E[h].items = newItems;
+    E[h].maxItem = newSize;
+    totalMemory += sizeof(ENTRY512*) * add;
 }
 
 /**
@@ -122,8 +169,9 @@ int HashTable512::Add(uint64_t h, int512_t *x, int512_t *d) {
 int HashTable512::Add(uint64_t h, ENTRY512* e) {
     if(E[h].maxItem == 0) {
         E[h].maxItem = 16;
-        E[h].items = (ENTRY512**)malloc(sizeof(ENTRY512*) * E[h].maxItem);
+        E[h].items = static_cast<ENTRY512**>(SmartAllocator::allocate(sizeof(ENTRY512*) * E[h].maxItem));
         if(!E[h].items) {
+            LOG_HASH_ERROR("initial allocation failed", h);
             FreeEntry512(e);
             return ADD512_COLLISION;
         }
@@ -252,7 +300,7 @@ void HashTable512::Reset() {
             FreeEntry512(E[h].items[i]);
         }
         if(E[h].items) {
-            free(E[h].items);
+            SmartAllocator::deallocate(E[h].items);
             E[h].items = nullptr;
         }
         E[h].nbItem = 0;

@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 #include "SECPK1/Point.h"
-#include "HashTable.h"  // [Chinese comment removed]int128_t定义
+#include "HashTable.h"  // For int128_t definition
 
 #ifdef WIN64
 #include <Windows.h>

@@ -16,8 +16,7 @@
 */
 
 // CUDA Kernel main function
-#include "UnifiedGPUMath.h"
-#include "UnifiedEllipticCurve.h"
+#include "GPUMath.h"
 
 // -----------------------------------------------------------------------------------------
 
@@ -62,7 +61,7 @@ __device__ void ComputeKangaroos(uint64_t *kangaroos,uint32_t maxFound,uint32_t 
       ModSub256(dx[g],px[g],jPx[jmp]);
     }
 
-    UnifiedGPUMath::BatchModInv(dx, GPU_GRP_SIZE);
+    _ModInvGrouped(dx);
 
     __syncthreads();
 

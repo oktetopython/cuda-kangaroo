@@ -167,7 +167,6 @@ private:
   void CreateJumpTable();
   bool AddToTable(uint64_t h,int128_t *x,int128_t *d);
   bool AddToTable(Int *pos,Int *dist,uint32_t kType);
-  bool HandleTableOverflow();
   bool SendToServer(std::vector<ITEM> &dp,uint32_t threadId,uint32_t gpuId);
   bool CheckKey(Int d1,Int d2,uint8_t type);
   bool CollisionCheck(Int* d1,uint32_t type1,Int* d2,uint32_t type2);

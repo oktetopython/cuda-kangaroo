@@ -15,9 +15,6 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef GPU_MATH_H
-#define GPU_MATH_H
-
 // ---------------------------------------------------------------------------------
 // 256(+64) bits integer CUDA libray for SECPK1
 // ---------------------------------------------------------------------------------
@@ -1191,5 +1188,3 @@ __device__ __noinline__ void _ModInvGrouped(uint64_t r[GPU_GRP_SIZE][4]) {
   Load256(r[0],inverse);
 
 }
-
-#endif // GPU_MATH_H

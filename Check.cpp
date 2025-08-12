@@ -25,17 +25,12 @@
     size_t result = fread(ptr, size, count, stream); \
     (void)result; /* Suppress unused variable warning */ \
   } while(0)
+
 #include "Timer.h"
 #include <string.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <algorithm>
-
-#define SAFE_FREAD(ptr, size, count, stream) \
-  do { \
-    size_t result = fread(ptr, size, count, stream); \
-    (void)result; /* Suppress unused variable warning */ \
-  } while(0)
 #ifndef WIN64
 #include <pthread.h>
 #define _strdup strdup

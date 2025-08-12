@@ -40,6 +40,12 @@ void emergency_cleanup_handler(int signal) {
 
 #define CHECKARG(opt,n) if(a>=argc-1) {::printf(opt " missing argument #%d\n",n);exit(0);} else {a++;}
 
+// 辅助函数：统一的参数错误处理
+void printInvalidArgument(const string& name) {
+  printf("Invalid %s argument, number expected\n", name.c_str());
+  exit(-1);
+}
+
 // ------------------------------------------------------------------------------------------
 
 void printUsage() {
@@ -90,8 +96,7 @@ int getInt(string name,char *v) {
 
   } catch(std::invalid_argument&) {
 
-    printf("Invalid %s argument, number expected\n",name.c_str());
-    exit(-1);
+    printInvalidArgument(name);
 
   }
 
@@ -109,8 +114,7 @@ double getDouble(string name,char *v) {
 
   } catch(std::invalid_argument&) {
 
-    printf("Invalid %s argument, number expected\n",name.c_str());
-    exit(-1);
+    printInvalidArgument(name);
 
   }
 
@@ -140,8 +144,7 @@ void getInts(string name,vector<int> &tokens,const string &text,char sep) {
   }
   catch(std::invalid_argument &) {
 
-    printf("Invalid %s argument, number expected\n",name.c_str());
-    exit(-1);
+    printInvalidArgument(name);
 
   }
 
@@ -343,7 +346,7 @@ int main(int argc, char* argv[]) {
   Kangaroo *v = new Kangaroo(secp,dp,gpuEnable,workFile,iWorkFile,savePeriod,saveKangaroo,saveKangarooByServer,
                              maxStep,wtimeout,port,ntimeout,serverIP,outputFile,splitWorkFile);
   if(checkFlag) {
-    v->Check(gpuId,gridSize);  
+    v->Check(gpuId,gridSize);
     exit(0);
   } else {
     if(checkWorkFile.length() > 0) {
@@ -370,7 +373,9 @@ int main(int argc, char* argv[]) {
         exit(-1);
       }
     }
-    // Run the main algorithm with exception handling
+  }
+
+  // Run the main algorithm with exception handling
     try {
       if(serverMode)
         v->RunServer();
@@ -389,7 +394,6 @@ int main(int argc, char* argv[]) {
       delete v;
       return -1;
     }
-  }
 
   // Clean shutdown
   delete secp;

@@ -332,8 +332,4 @@ public:
     }
 };
 
-// Static member definitions
-std::unique_ptr<CudaMemoryPool> CudaMemoryManager::device_pool_ = nullptr;
-std::unique_ptr<CudaMemoryPool> CudaMemoryManager::host_pool_ = nullptr;
-
 #endif // CUDA_MEMORY_MANAGER_H

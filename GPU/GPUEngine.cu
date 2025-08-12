@@ -31,6 +31,21 @@
 #include "GPUCompute.h"
 #include "CudaErrorHandler.h"
 
+
+
+// Enhanced unified CUDA error handling with context information
+static bool CheckCudaError(cudaError_t err, const char* operation, bool returnValue = false, const char* context = nullptr, uint64_t id = 0) {
+    if(err != cudaSuccess) {
+        if(context && id > 0) {
+            printf("GPUEngine: %s: Failed for %s %llu: %s\n", operation, context, id, cudaGetErrorString(err));
+        } else {
+            printf("GPUEngine: %s: %s\n", operation, cudaGetErrorString(err));
+        }
+        return returnValue;
+    }
+    return true;
+}
+
 // ---------------------------------------------------------------------------------------
 
 __global__ void comp_kangaroos(uint64_t *kangaroos,uint32_t maxFound,uint32_t *found,uint64_t dpMask) {
@@ -164,8 +179,7 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
   }
 
   err = cudaSetDevice(gpuId);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "cudaSetDevice")) {
     return;
   }
 
@@ -174,7 +188,7 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
 
   this->nbThread = nbThreadGroup * nbThreadPerGroup;
   this->maxFound = maxFound;
-  this->outputSize = (maxFound*ITEM_SIZE + 4);
+  outputSize = (maxFound*ITEM_SIZE + 4);
 
   char tmp[512];
   sprintf(tmp,"GPU #%d %s (%dx%d cores) Grid(%dx%d)",
@@ -186,8 +200,7 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
 
   // Prefer L1 (We do not use __shared__ at all)
   err = cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "cudaDeviceSetCacheConfig")) {
     return;
   }
 
@@ -207,28 +220,24 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
   }
   kangarooSizePinned = nbThreadPerGroup * GPU_GRP_SIZE *  KSIZE * 8;
   err = cudaHostAlloc(&inputKangarooPinned,kangarooSizePinned,cudaHostAllocWriteCombined | cudaHostAllocMapped);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Allocate input pinned memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "Allocate input pinned memory")) {
     return;
   }
 
   // OutputHash
   err = cudaMalloc((void **)&outputItem,outputSize);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Allocate output memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "Allocate output memory")) {
     return;
   }
   err = cudaHostAlloc(&outputItemPinned,outputSize,cudaHostAllocMapped);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Allocate output pinned memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "Allocate output pinned memory")) {
     return;
   }
 
   // Jump array
   jumpSize = NB_JUMP * 8 * 4;
   err = cudaHostAlloc(&jumpPinned,jumpSize,cudaHostAllocMapped);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Allocate jump pinned memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "Allocate jump pinned memory")) {
     return;
   }
 
@@ -255,51 +264,28 @@ GPUEngine::GPUEngine(int nbThreadGroup,int nbThreadPerGroup,int gpuId,uint32_t m
 
 GPUEngine::~GPUEngine() {
 
+  // Helper lambda for safe memory deallocation
+  auto safeFree = [](auto& ptr, auto freeFunc, const char* name) {
+    if(ptr) {
+      cudaError_t err = freeFunc(ptr);
+      CheckCudaError(err, ("Warning - Failed to free " + std::string(name)).c_str());
+      ptr = nullptr;
+    }
+  };
+
   // Free GPU device memory
-  if(inputKangaroo) {
-    cudaError_t err = cudaFree(inputKangaroo);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: Warning - Failed to free inputKangaroo: %s\n", cudaGetErrorString(err));
-    }
-    inputKangaroo = nullptr;
-  }
-  if(outputItem) {
-    cudaError_t err = cudaFree(outputItem);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: Warning - Failed to free outputItem: %s\n", cudaGetErrorString(err));
-    }
-    outputItem = nullptr;
-  }
+  safeFree(inputKangaroo, cudaFree, "inputKangaroo");
+  safeFree(outputItem, cudaFree, "outputItem");
 
   // Free host pinned memory
-  if(inputKangarooPinned) {
-    cudaError_t err = cudaFreeHost(inputKangarooPinned);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: Warning - Failed to free inputKangarooPinned: %s\n", cudaGetErrorString(err));
-    }
-    inputKangarooPinned = nullptr;
-  }
-  if(outputItemPinned) {
-    cudaError_t err = cudaFreeHost(outputItemPinned);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: Warning - Failed to free outputItemPinned: %s\n", cudaGetErrorString(err));
-    }
-    outputItemPinned = nullptr;
-  }
-  if(jumpPinned) {
-    cudaError_t err = cudaFreeHost(jumpPinned);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: Warning - Failed to free jumpPinned: %s\n", cudaGetErrorString(err));
-    }
-    jumpPinned = nullptr;
-  }
+  safeFree(inputKangarooPinned, cudaFreeHost, "inputKangarooPinned");
+  safeFree(outputItemPinned, cudaFreeHost, "outputItemPinned");
+  safeFree(jumpPinned, cudaFreeHost, "jumpPinned");
 
   // Force GPU context cleanup to prevent memory leaks
   // This ensures all GPU memory is properly released
   cudaError_t err = cudaDeviceReset();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Warning - GPU device reset failed: %s\n", cudaGetErrorString(err));
-  }
+  CheckCudaError(err, "Warning - GPU device reset failed");
 
 }
 
@@ -354,8 +340,7 @@ void *GPUEngine::AllocatePinnedMemory(size_t size) {
   void *buff;
 
   cudaError_t err = cudaHostAlloc(&buff,size,cudaHostAllocPortable);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: AllocatePinnedMemory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "AllocatePinnedMemory")) {
     return NULL;
   }
 
@@ -366,9 +351,7 @@ void *GPUEngine::AllocatePinnedMemory(size_t size) {
 void GPUEngine::FreePinnedMemory(void *buff) {
   if(buff) {
     cudaError_t err = cudaFreeHost(buff);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: Warning - Failed to free pinned memory: %s\n", cudaGetErrorString(err));
-    }
+    CheckCudaError(err, "Warning - Failed to free pinned memory");
   }
 }
 
@@ -376,8 +359,8 @@ void GPUEngine::ForceGPUCleanup() {
   // Emergency GPU memory cleanup function
   // This can be called from signal handlers or exception handlers
   cudaError_t err = cudaDeviceReset();
-  if(err != cudaSuccess) {
-    printf("ForceGPUCleanup: GPU reset failed: %s\n", cudaGetErrorString(err));
+  if(!CheckCudaError(err, "ForceGPUCleanup: GPU reset failed")) {
+    // Error already logged
   } else {
     printf("ForceGPUCleanup: GPU memory successfully released\n");
   }
@@ -387,9 +370,7 @@ void GPUEngine::ForceGPUCleanup() {
 CudaMemoryGuard::~CudaMemoryGuard() {
   // Force cleanup of all GPU resources on destruction
   cudaError_t err = cudaDeviceReset();
-  if(err != cudaSuccess) {
-    printf("CudaMemoryGuard: GPU cleanup warning: %s\n", cudaGetErrorString(err));
-  }
+  CheckCudaError(err, "CudaMemoryGuard: GPU cleanup warning");
 }
 
 void GPUEngine::PrintCudaInfo() {
@@ -423,8 +404,7 @@ void GPUEngine::PrintCudaInfo() {
   for(int i = 0; i<deviceCount; i++) {
 
     err = cudaSetDevice(i);
-    if(err != cudaSuccess) {
-      printf("GPUEngine: cudaSetDevice(%d) %s\n",i,cudaGetErrorString(err));
+    if(!CheckCudaError(err, ("cudaSetDevice(" + std::to_string(i) + ")").c_str())) {
       return;
     }
 
@@ -492,9 +472,7 @@ void GPUEngine::SetKangaroos(Int *px,Int *py,Int *d) {
   }
 
   cudaError_t err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroos: %s\n",cudaGetErrorString(err));
-  }
+  CheckCudaError(err, "SetKangaroos");
 
 }
 
@@ -550,9 +528,7 @@ void GPUEngine::GetKangaroos(Int *px,Int *py,Int *d) {
   }
 
   cudaError_t err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: GetKangaroos: %s\n",cudaGetErrorString(err));
-  }
+  CheckCudaError(err, "GetKangaroos");
 
 }
 
@@ -568,62 +544,18 @@ void GPUEngine::SetKangaroo(uint64_t kIdx,Int *px,Int *py,Int *d) {
 
   cudaError_t err;
 
-  // X
-  inputKangarooPinned[0] = px->bits64[0];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 0 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy px[0] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
+  // X coordinate - copy all 4 64-bit words
+  for(int i = 0; i < 4; i++) {
+    inputKangarooPinned[0] = px->bits64[i];
+    err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + i * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+    if(!CheckCudaError(err, "SetKangaroo px copy", false, "kangaroo", kIdx)) return;
   }
 
-  inputKangarooPinned[0] = px->bits64[1];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 1 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy px[1] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  inputKangarooPinned[0] = px->bits64[2];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 2 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy px[2] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  inputKangarooPinned[0] = px->bits64[3];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 3 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy px[3] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  // Y
-  inputKangarooPinned[0] = py->bits64[0];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 4 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy py[0] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  inputKangarooPinned[0] = py->bits64[1];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 5 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy py[1] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  inputKangarooPinned[0] = py->bits64[2];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 6 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy py[2] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  inputKangarooPinned[0] = py->bits64[3];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 7 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy py[3] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
+  // Y coordinate - copy all 4 64-bit words
+  for(int i = 0; i < 4; i++) {
+    inputKangarooPinned[0] = py->bits64[i];
+    err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + (4 + i) * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+    if(!CheckCudaError(err, "SetKangaroo py copy", false, "kangaroo", kIdx)) return;
   }
 
   // D
@@ -631,28 +563,18 @@ void GPUEngine::SetKangaroo(uint64_t kIdx,Int *px,Int *py,Int *d) {
   dOff.Set(d);
   if(kIdx % 2 == WILD) dOff.ModAddK1order(&wildOffset);
 
-  inputKangarooPinned[0] = dOff.bits64[0];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 8 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy d[0] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
-
-  inputKangarooPinned[0] = dOff.bits64[1];
-  err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 9 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy d[1] for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
+  // D coordinate - copy 2 64-bit words
+  for(int i = 0; i < 2; i++) {
+    inputKangarooPinned[0] = dOff.bits64[i];
+    err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + (8 + i) * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
+    if(!CheckCudaError(err, "SetKangaroo d copy", false, "kangaroo", kIdx)) return;
   }
 
 #ifdef USE_SYMMETRY
-  // Last jump
+  // Last jump count
   inputKangarooPinned[0] = (uint64_t)NB_JUMP;
   err = cudaMemcpy(inputKangaroo + (b * blockSize + g * strideSize + t + 10 * nbThreadPerGroup),inputKangarooPinned,8,cudaMemcpyHostToDevice);
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetKangaroo: Failed to copy jump count for kangaroo %llu: %s\n", kIdx, cudaGetErrorString(err));
-    return;
-  }
+  if(!CheckCudaError(err, "SetKangaroo jump count", false, "kangaroo", kIdx)) return;
 #endif
 
 }
@@ -667,10 +589,7 @@ bool GPUEngine::callKernel() {
       (inputKangaroo,maxFound,outputItem,dpMask);
 
   cudaError_t err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Kernel: %s\n",cudaGetErrorString(err));
-    return false;
-  }
+  return CheckCudaError(err, "Kernel", true);
 
   return true;
 
@@ -684,8 +603,7 @@ void GPUEngine::SetParams(uint64_t dpMask,Int *distance,Int *px,Int *py) {
     memcpy(jumpPinned + 2*i,distance[i].bits64,16);
   cudaMemcpyToSymbol(jD,jumpPinned,jumpSize/2);
   cudaError_t err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetParams: Failed to copy to constant memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "SetParams: Failed to copy jD to constant memory")) {
     return;
   }
 
@@ -693,8 +611,7 @@ void GPUEngine::SetParams(uint64_t dpMask,Int *distance,Int *px,Int *py) {
     memcpy(jumpPinned + 4 * i,px[i].bits64,32);
   cudaMemcpyToSymbol(jPx,jumpPinned,jumpSize);
   err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetParams: Failed to copy to constant memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "SetParams: Failed to copy jPx to constant memory")) {
     return;
   }
 
@@ -702,8 +619,7 @@ void GPUEngine::SetParams(uint64_t dpMask,Int *distance,Int *px,Int *py) {
     memcpy(jumpPinned + 4 * i,py[i].bits64,32);
   cudaMemcpyToSymbol(jPy,jumpPinned,jumpSize);
   err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: SetParams: Failed to copy to constant memory: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "SetParams: Failed to copy jPy to constant memory")) {
     return;
   }
 
@@ -715,10 +631,7 @@ bool GPUEngine::callKernelAndWait() {
   callKernel();
   cudaMemcpy(outputItemPinned,outputItem,outputSize,cudaMemcpyDeviceToHost);
   cudaError_t err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: callKernelAndWait: %s\n",cudaGetErrorString(err));
-    return false;
-  }
+  return CheckCudaError(err, "callKernelAndWait", true);
 
   return true;
 
@@ -751,8 +664,7 @@ bool GPUEngine::Launch(std::vector<ITEM> &hashFound,bool spinWait) {
   }
 
   cudaError_t err = cudaGetLastError();
-  if(err != cudaSuccess) {
-    printf("GPUEngine: Launch: %s\n",cudaGetErrorString(err));
+  if(!CheckCudaError(err, "Launch")) {
     return false;
   }
 

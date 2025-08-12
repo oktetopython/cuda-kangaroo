@@ -200,8 +200,6 @@ void Int::DivStep62(Int* u,Int* v,int64_t* eta,int* pos,int64_t* uu,int64_t* uv,
   uint64_t uh;
   uint64_t vh;
   uint64_t w,x;
-  unsigned char c = 0;
-  (void)c; // Suppress unused variable warning
 
   // Extract 64 MSB of u and v
   // u and v must be positive
@@ -661,10 +659,8 @@ void Int::ModSqrt() {
 
   } else if ((_P.bits64[0] & 3) == 1) {
 
-    int nbBit = _P.GetBitLength();
-    (void)nbBit; // Suppress unused variable warning
-
-    // Tonelli Shanks
+    // Tonelli-Shanks algorithm for modular square root
+    // when P ≡ 1 (mod 4)
     uint64_t e=0;
     Int S(&_P);
     S.SubOne();

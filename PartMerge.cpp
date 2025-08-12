@@ -39,6 +39,11 @@
 
 using namespace std;
 
+// Helper function: unified system error handling
+static void PrintSystemError() {
+  ::printf("%s\n", ::strerror(errno));
+}
+
 string Kangaroo::GetPartName(std::string& partName,int i,bool tmpPart) {
 
   char tmp[256];
@@ -58,7 +63,7 @@ FILE * Kangaroo::OpenPart(std::string& partName,const char *mode,int i,bool tmpP
   FILE* f = fopen(fName.c_str(),mode);
   if(f == NULL) {
     ::printf("OpenPart: Cannot open %s for mode %s\n",fName.c_str(),mode);
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
   }
 
   return f;
@@ -104,7 +109,7 @@ void Kangaroo::CreateEmptyPartWork(std::string& partName) {
   FILE* f = fopen(hName.c_str(),"wb");
   if(f == NULL) {
     ::printf("CreateEmptyPartWork: Cannot open %s for writing\n",partName.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     return;
   }
 
@@ -346,7 +351,7 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
   FILE* f = fopen(file1.c_str(),"wb");
   if(f == NULL) {
     ::printf("MergeWorkPart: Cannot open %s for writing\n",file1.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     fclose(f2);
     return true;
   }
@@ -433,7 +438,6 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
 }
 
 bool Kangaroo::FillEmptyPartFromFile(std::string& partName,std::string& fileName,bool printStat) {
-  (void)printStat; // Suppress unused parameter warning
 
   double t0;
   double t1;
@@ -483,7 +487,7 @@ bool Kangaroo::FillEmptyPartFromFile(std::string& partName,std::string& fileName
   FILE* f = fopen(file1.c_str(),"wb");
   if(f == NULL) {
     ::printf("FillEmptyPartFromFile: Cannot open %s for writing\n",file1.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     return true;
   }
   if(!SaveHeader(file1,f,HEADW,count1,time1)) {
@@ -491,8 +495,11 @@ bool Kangaroo::FillEmptyPartFromFile(std::string& partName,std::string& fileName
   }
   ::fclose(f);
 
-  ::printf("Part %s: [DP%d]\n",partName.c_str(),dp1);
-  ::printf("File %s: [DP%d]\n",fileName.c_str(),dp1);
+  // Print statistics if requested
+  if(printStat) {
+    ::printf("Part %s: [DP%d]\n",partName.c_str(),dp1);
+    ::printf("File %s: [DP%d]\n",fileName.c_str(),dp1);
+  }
 
   uint64_t nbDP = 0;
   ::printf("Filling");
@@ -660,7 +667,7 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
   FILE* f = fopen(file1.c_str(),"wb");
   if(f == NULL) {
     ::printf("MergeWorkPart: Cannot open %s for writing\n",file1.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     fclose(f2);
     return true;
   }

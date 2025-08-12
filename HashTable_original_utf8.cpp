@@ -25,23 +25,29 @@
 #define GET(hash,id) E[hash].items[id]
 
 HashTable::HashTable() {
-
-  memset(E,0,sizeof(E));
-  
+  maxFound = 0;
+  E = NULL;
+  Reset();
 }
 
 void HashTable::Reset() {
-
-  for(uint32_t h = 0; h < HASH_SIZE; h++) {
-    if(E[h].items) {
-      for(uint32_t i = 0; i<E[h].nbItem; i++)
+  if(E) {
+    for(uint64_t h = 0; h < NB_ENTRY; h++) {
+      for(uint32_t i = 0; i < E[h].nbItem; i++)
         free(E[h].items[i]);
+      free(E[h].items);
     }
-    safe_free(E[h].items);
-    E[h].maxItem = 0;
-    E[h].nbItem = 0;
+    free(E);
   }
-
+  E = (ITEM *)calloc(NB_ENTRY,sizeof(ITEM));
+  for(uint64_t i = 0; i < NB_ENTRY; i++) {
+    E[i].maxItem = 1;
+    E[i].items = (ENTRY **)malloc(sizeof(ENTRY *));
+    E[i].nbItem = 0;
+  }
+  nbDP = 0;
+  nbCollision = 0;
+  maxFound = 0;
 }
 
 uint64_t HashTable::GetNbItem() {
@@ -74,29 +80,12 @@ ENTRY *HashTable::CreateEntry(int128_t *x,int128_t *d) {
 
 void HashTable::Convert(Int *x,Int *d,uint32_t type,uint64_t *h,int128_t *X,int128_t *D) {
 
-  uint64_t sign = 0;
-  uint64_t type64 = (uint64_t)type << 62;
-
-  X->i64[0] = x->bits64[0];
-  X->i64[1] = x->bits64[1];
-
-  // Probability of failure (1/2^128)
-  if(d->bits64[3] > 0x7FFFFFFFFFFFFFFFULL) {
-    Int N(d);
-    N.ModNegK1order();
-    D->i64[0] = N.bits64[0];
-    D->i64[1] = N.bits64[1] & 0x3FFFFFFFFFFFFFFFULL;
-    sign = 1ULL << 63;
-  } else {
-    D->i64[0] = d->bits64[0];
-    D->i64[1] = d->bits64[1] & 0x3FFFFFFFFFFFFFFFULL;
-  }
-
-  D->i64[1] |= sign;
-  D->i64[1] |= type64;
-
-  *h = (x->bits64[2] & HASH_MASK);
-
+  X->i64[0] = x->bits64[0] & 0x0000000FFFFFFFFFULL;
+  X->i64[1] = ((x->bits64[1] & 0x0000000FFFFFFFFFULL) << 32) | ((x->bits64[0] >> 32) & 0x0000000FFFFFFFFFULL);
+  D->i64[0] = d->bits64[0] & 0x0000000FFFFFFFFFULL;
+  D->i64[1] = ((d->bits64[1] & 0x0000000FFFFFFFFFULL) << 32) | ((d->bits64[0] >> 32) & 0x0000000FFFFFFFFFULL);
+  *h = (x->bits64[2] & 0x0000000FFFFFFFFFULL) % NB_ENTRY;
+  if(type == WILD) *h += NB_ENTRY / 2;
 }
 
 
@@ -248,14 +237,9 @@ int HashTable::Add(uint64_t h,int128_t *x,int128_t *d) {
 
 void HashTable::CalcDistAndType(int128_t d,Int* kDist,uint32_t* kType) {
 
-  *kType = (d.i64[1] & 0x4000000000000000ULL) != 0;
-  int sign = (d.i64[1] & 0x8000000000000000ULL) != 0;
-  d.i64[1] &= 0x3FFFFFFFFFFFFFFFULL;
-
-  kDist->SetInt32(0);
-  kDist->bits64[0] = d.i64[0];
-  kDist->bits64[1] = d.i64[1];
-  if(sign) kDist->ModNegK1order();
+  kDist->SetInt64(0,d.i64[0]);
+  kDist->bits64[2] = d.i64[1] & 0x0000000FFFFFFFFFULL;
+  *kType = (uint32_t)((d.i64[1] >> 32) & 0x0000000FFFFFFFFFULL);
 
 }
 

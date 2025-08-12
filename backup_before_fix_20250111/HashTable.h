@@ -104,9 +104,6 @@ public:
 private:
 
   ENTRY *CreateEntry(int128_t *x,int128_t *d);
-  ENTRY** AllocateEntryArray(uint32_t count);
-  void CleanupPartialEntries(ENTRY** items, uint32_t count);
-  bool LoadBucketEntries(uint32_t h, uint32_t nbItem, FILE* f);
   static int compare(int128_t *i1,int128_t *i2);
   std::string GetStr(int128_t *i);
 

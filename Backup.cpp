@@ -36,6 +36,10 @@
 
 using namespace std;
 
+// 辅助函数：统一的系统错误处理
+static void PrintSystemError() {
+  ::printf("%s\n", ::strerror(errno));
+}
 
 // ----------------------------------------------------------------------------
 
@@ -64,7 +68,7 @@ bool Kangaroo::IsEmpty(std::string fileName) {
   FILE *pFile = fopen(fileName.c_str(),"r");
   if(pFile==NULL) {
     ::printf("OpenPart: Cannot open %s for reading\n",fileName.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     ::exit(0);
   }
   fseek(pFile,0,SEEK_END);
@@ -111,7 +115,7 @@ FILE *Kangaroo::ReadHeader(std::string fileName, uint32_t *version, int type) {
   FILE *f = fopen(fileName.c_str(),"rb");
   if(f == NULL) {
     ::printf("ReadHeader: Cannot open %s for reading\n",fileName.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     return NULL;
   }
   uint32_t head;
@@ -123,7 +127,7 @@ FILE *Kangaroo::ReadHeader(std::string fileName, uint32_t *version, int type) {
     if(::feof(f)) {
       ::printf("Empty file\n");
     } else {
-      ::printf("%s\n",::strerror(errno));
+      PrintSystemError();
     }
     ::fclose(f);
     return NULL;
@@ -378,7 +382,7 @@ bool Kangaroo::SaveHeader(string fileName,FILE* f,int type,uint64_t totalCount,d
   uint32_t version = 0;
   if(::fwrite(&head,sizeof(uint32_t),1,f) != 1) {
     ::printf("SaveHeader: Cannot write to %s\n",fileName.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     return false;
   }
   ::fwrite(&version,sizeof(uint32_t),1,f);
@@ -425,7 +429,7 @@ void Kangaroo::SaveServerWork() {
   FILE *f = fopen(fileName.c_str(),"wb");
   if(f == NULL) {
     ::printf("\nSaveWork: Cannot open %s for writing\n",fileName.c_str());
-    ::printf("%s\n",::strerror(errno));
+    PrintSystemError();
     saveRequest = false;
     return;
   }
@@ -487,7 +491,7 @@ void Kangaroo::SaveWork(uint64_t totalCount,double totalTime,TH_PARAM *threads,i
     f = fopen(fileName.c_str(),"wb");
     if(f == NULL) {
       ::printf("\nSaveWork: Cannot open %s for writing\n",fileName.c_str());
-      ::printf("%s\n",::strerror(errno));
+      PrintSystemError();
       UNLOCK(saveMutex);
       return;
     }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * This file is part of the BSGS distribution (https://github.com/JeanLucPons/Kangaroo).
  * Copyright (c) 2020 Jean Luc PONS.
  *
@@ -32,14 +32,6 @@
 #define ADD_OK        0
 #define ADD_DUPLICATE 1
 #define ADD_COLLISION 2
-#define ADD_OVERFLOW  3
-
-// Maximum items per hash bucket to prevent excessive memory usage
-#define MAX_ITEMS_PER_BUCKET 2048
-// Maximum total items in hash table (increased for better performance)
-#define MAX_TOTAL_ITEMS (HASH_SIZE * 128)
-// Soft limit for hash table cleanup trigger
-#define SOFT_LIMIT_ITEMS (HASH_SIZE * 96)
 
 union int128_s {
 
@@ -104,9 +96,6 @@ public:
 private:
 
   ENTRY *CreateEntry(int128_t *x,int128_t *d);
-  ENTRY** AllocateEntryArray(uint32_t count);
-  void CleanupPartialEntries(ENTRY** items, uint32_t count);
-  bool LoadBucketEntries(uint32_t h, uint32_t nbItem, FILE* f);
   static int compare(int128_t *i1,int128_t *i2);
   std::string GetStr(int128_t *i);
 

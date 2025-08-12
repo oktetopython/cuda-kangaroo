@@ -18,8 +18,6 @@
 #include "Kangaroo.h"
 #include <fstream>
 #include "SECPK1/IntGroup.h"
-#include <atomic>
-#include <chrono>
 #ifdef WIN64
 #include <Windows.h>
 #else
@@ -237,24 +235,23 @@ bool  Kangaroo::CheckKey(Int d1,Int d2,uint8_t type) {
 
   Point P = secp->ComputePublicKey(&pk);
 
-  // Helper lambda to process found key with common logic
-  auto processFoundKey = [&](bool isNegative) -> bool {
-    if(isNegative) pk.ModNegK1order();
+  if(P.equals(keyToSearch)) {
+    // Key solved    
+#ifdef USE_SYMMETRY
+    pk.ModAddK1order(&rangeWidthDiv2);
+#endif
+    pk.ModAddK1order(&rangeStart);    
+    return Output(&pk,'N',type);
+  }
+
+  if(P.equals(keyToSearchNeg)) {
+    // Key solved
+    pk.ModNegK1order();
 #ifdef USE_SYMMETRY
     pk.ModAddK1order(&rangeWidthDiv2);
 #endif
     pk.ModAddK1order(&rangeStart);
-    return Output(&pk, isNegative ? 'S' : 'N', type);
-  };
-
-  if(P.equals(keyToSearch)) {
-    // Key solved (normal)
-    return processFoundKey(false);
-  }
-
-  if(P.equals(keyToSearchNeg)) {
-    // Key solved (negated)
-    return processFoundKey(true);
+    return Output(&pk,'S',type);
   }
 
   return false;
@@ -312,39 +309,6 @@ bool Kangaroo::CollisionCheck(Int* d1,uint32_t type1,Int* d2,uint32_t type2) {
 
 // ----------------------------------------------------------------------------
 
-// Unified hash table overflow handling function
-bool Kangaroo::HandleTableOverflow() {
-  // Thread-safe static variables with modern C++ atomic operations
-  static std::atomic<uint32_t> overflowWarnings{0};
-  static std::atomic<uint32_t> lastWarningTime{0};
-
-  // Modern atomic increment - thread-safe across all platforms
-  uint32_t currentWarnings = overflowWarnings.fetch_add(1) + 1;
-
-  // Use high-resolution clock for better precision
-  auto now = std::chrono::steady_clock::now();
-  auto epoch = now.time_since_epoch();
-  uint32_t currentTime = static_cast<uint32_t>(
-      std::chrono::duration_cast<std::chrono::seconds>(epoch).count()
-  );
-  uint32_t lastTime = lastWarningTime.load();
-
-  if(currentWarnings % 1000 == 1 || (currentTime - lastTime > 60)) {
-    // Use modern atomic compare-and-swap - thread-safe across all platforms
-    lastWarningTime.compare_exchange_weak(lastTime, currentTime);
-
-    ::printf("\n[!] CRITICAL: Hash table overflow (warning #%u)\n"
-              "[*] IMMEDIATE ACTIONS NEEDED:\n"
-              "   1. STOP and restart with: -d %d (increase DP size)\n"
-              "   2. OR reduce GPU threads: -g <smaller_value>\n"
-              "   3. Current table: %s (FULL!)\n"
-              "   4. Performance degraded: %u kangaroos dead\n"
-              "[!] Algorithm efficiency severely compromised!\n\n",
-              currentWarnings, initDPSize + 1, hashTable.GetSizeInfo().c_str(), currentWarnings);
-  }
-  return false; // Treat as failed addition
-}
-
 bool Kangaroo::AddToTable(Int *pos,Int *dist,uint32_t kType) {
 
   int addStatus = hashTable.Add(pos,dist,kType);
@@ -352,7 +316,39 @@ bool Kangaroo::AddToTable(Int *pos,Int *dist,uint32_t kType) {
     return CollisionCheck(&hashTable.kDist,hashTable.kType,dist,kType);
 
   if(addStatus == ADD_OVERFLOW) {
-    return HandleTableOverflow();
+    // Hash table is full, log warning but continue
+    // Thread-safe static variables with atomic operations
+    static volatile uint32_t overflowWarnings = 0;
+    static volatile uint32_t lastWarningTime = 0;
+
+    // Atomic increment for thread safety
+    uint32_t currentWarnings;
+#ifdef WIN64
+    currentWarnings = InterlockedIncrement((LONG*)&overflowWarnings);
+#else
+    currentWarnings = __sync_add_and_fetch(&overflowWarnings, 1);
+#endif
+
+    uint32_t currentTime = (uint32_t)time(NULL);
+    uint32_t lastTime = lastWarningTime;
+
+    if(currentWarnings % 1000 == 1 || (currentTime - lastTime > 60)) {
+      // Use atomic compare-and-swap to update lastWarningTime safely
+#ifdef WIN64
+      InterlockedCompareExchange((LONG*)&lastWarningTime, currentTime, lastTime);
+#else
+      __sync_bool_compare_and_swap(&lastWarningTime, lastTime, currentTime);
+#endif
+
+      ::printf("\n[!] CRITICAL: Hash table overflow (warning #%u)\n", currentWarnings);
+      ::printf("[*] IMMEDIATE ACTIONS NEEDED:\n");
+      ::printf("   1. STOP and restart with: -d %d (increase DP size)\n", initDPSize + 1);
+      ::printf("   2. OR reduce GPU threads: -g <smaller_value>\n");
+      ::printf("   3. Current table: %s (FULL!)\n", hashTable.GetSizeInfo().c_str());
+      ::printf("   4. Performance degraded: %u kangaroos dead\n", currentWarnings);
+      ::printf("[!] Algorithm efficiency severely compromised!\n\n");
+    }
+    return false; // Treat as failed addition
   }
 
   return addStatus == ADD_OK;
@@ -372,7 +368,8 @@ bool Kangaroo::AddToTable(uint64_t h,int128_t *x,int128_t *d) {
   }
 
   if(addStatus == ADD_OVERFLOW) {
-    return HandleTableOverflow();
+    // Hash table is full, treat as failed addition
+    return false;
   }
 
   return addStatus == ADD_OK;

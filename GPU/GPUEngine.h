@@ -90,10 +90,16 @@ private:
   bool lostWarning;
   uint32_t maxFound;
   uint64_t dpMask;
-  
+
+  // Memory sizes
+  size_t outputSize;
+  size_t kangarooSize;
+  size_t kangarooSizePinned;
+  size_t jumpSize;
+
   // RAII Memory Management
   std::unique_ptr<KangarooMemoryLayout> memory_layout_;
-  
+
   // Legacy compatibility - will be removed
   uint64_t *inputKangaroo;
   uint64_t *inputKangarooPinned;
