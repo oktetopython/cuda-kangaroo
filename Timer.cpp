@@ -138,7 +138,7 @@ std::string Timer::getSeed(int size) {
 #endif
 
   for (int i = 0; i < size; i++) {
-    sprintf(tmp,"%02X",buff[i]);
+    snprintf(tmp, sizeof(tmp), "%02X", buff[i]);
     ret.append(tmp);
   }
   
@@ -157,7 +157,7 @@ std::string Timer::getResult(const char *unit, int nbTry, double t0, double t1) 
     pIdx++;
     nbCallPerSec = nbCallPerSec / 1000.0;
   }
-  sprintf(tmp, "%.3f %s%s/sec", nbCallPerSec, prefix[pIdx], unit);
+  snprintf(tmp, sizeof(tmp), "%.3f %s%s/sec", nbCallPerSec, prefix[pIdx], unit);
   return std::string(tmp);
 
 }

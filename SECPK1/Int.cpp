@@ -1221,9 +1221,9 @@ std::string Int::GetBlockStr() {
 	char bStr[256];
 	tmp[0] = 0;
 	for (int i = NB32BLOCK-3; i>=0 ; i--) {
-	  sprintf(bStr, "%08X", bits[i]);
-	  strcat(tmp, bStr);
-	  if(i!=0) strcat(tmp, " ");
+	  snprintf(bStr, sizeof(bStr), "%08X", bits[i]);
+	  strncat(tmp, bStr, sizeof(tmp) - strlen(tmp) - 1);
+	  if(i!=0) strncat(tmp, " ", sizeof(tmp) - strlen(tmp) - 1);
 	}
 	return std::string(tmp);
 }
@@ -1239,17 +1239,17 @@ std::string Int::GetC64Str(int nbDigit) {
   for (int i = 0; i< nbDigit; i++) {
     if (bits64[i] != 0) {
 #ifdef WIN64
-      sprintf(bStr, "0x%016I64XULL", bits64[i]);
+      snprintf(bStr, sizeof(bStr), "0x%016I64XULL", bits64[i]);
 #else
-      sprintf(bStr, "0x%" PRIx64  "ULL", bits64[i]);
+      snprintf(bStr, sizeof(bStr), "0x%" PRIx64  "ULL", bits64[i]);
 #endif
     } else {
-      sprintf(bStr, "0ULL");
+      snprintf(bStr, sizeof(bStr), "0ULL");
     }
-    strcat(tmp, bStr);
-    if (i != nbDigit -1) strcat(tmp, ",");
+    strncat(tmp, bStr, sizeof(tmp) - strlen(tmp) - 1);
+    if (i != nbDigit -1) strncat(tmp, ",", sizeof(tmp) - strlen(tmp) - 1);
   }
-  strcat(tmp,"}");
+  strncat(tmp,"}", sizeof(tmp) - strlen(tmp) - 1);
   return std::string(tmp);
 }
 

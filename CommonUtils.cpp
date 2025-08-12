@@ -113,9 +113,9 @@ std::string formatTime(double seconds) {
   
   char buffer[64];
   if(hours > 0) {
-    sprintf(buffer, "%02d:%02d:%02d", hours, minutes, secs);
+    snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d", hours, minutes, secs);
   } else {
-    sprintf(buffer, "%02d:%02d", minutes, secs);
+    snprintf(buffer, sizeof(buffer), "%02d:%02d", minutes, secs);
   }
   return std::string(buffer);
 }

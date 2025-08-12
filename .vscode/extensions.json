@@ -1,0 +1,48 @@
+{
+  "recommendations": [
+    // === Core C++ Development ===
+    "ms-vscode.cpptools",
+    "ms-vscode.cpptools-extension-pack",
+    "ms-vscode.cmake-tools",
+    // === Modern C++ Support ===
+    "llvm-vs-code-extensions.vscode-clangd",
+    "xaver.clang-format",
+    "notskm.clang-tidy",
+    // === CUDA Development ===
+    "nvidia.nsight-vscode-edition",
+    // === Code Quality and Analysis ===
+    "sonarsource.sonarlint-vscode",
+    "ms-vscode.vscode-json",
+    "redhat.vscode-yaml",
+    // === Git and Version Control ===
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "donjayamanne.githistory",
+    // === Documentation and Markdown ===
+    "yzhang.markdown-all-in-one",
+    "shd101wyy.markdown-preview-enhanced",
+    "davidanson.vscode-markdownlint",
+    // === Productivity and UI ===
+    "ms-vscode.vscode-typescript-next",
+    "formulahendry.code-runner",
+    "alefragnani.bookmarks",
+    "oderwat.indent-rainbow",
+    "streetsidesoftware.code-spell-checker",
+    // === AI Agent Framework Support ===
+    "ms-vscode.vscode-json",
+    "redhat.vscode-xml",
+    "ms-python.python",
+    // === Performance and Debugging ===
+    "ms-vscode.hexeditor",
+    "vadimcn.vscode-lldb",
+    // === Project Management ===
+    "gruntfuggly.todo-tree",
+    "aaron-bond.better-comments",
+    "wayou.vscode-todo-highlight"
+  ],
+  "unwantedRecommendations": [
+    // Avoid conflicting extensions
+    "ms-vscode.vscode-typescript",
+    "bradlc.vscode-tailwindcss"
+  ]
+}

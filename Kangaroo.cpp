@@ -18,6 +18,7 @@
 #include "Kangaroo.h"
 #include <fstream>
 #include "SECPK1/IntGroup.h"
+#include "ModernMemoryManager.h"
 #include <atomic>
 #include <chrono>
 #ifdef WIN64
@@ -38,7 +39,8 @@
 
 using namespace std;
 
-#define safe_delete_array(x) if(x) {delete[] x;x=NULL;}
+// Modern C++ RAII replaces the need for safe_delete_array macro
+// Use std::unique_ptr instead of raw pointers for automatic cleanup
 
 // Use CommonUtils for error reporting
 
@@ -67,11 +69,11 @@ Kangaroo::Kangaroo(Secp256K1 *secp,int32_t initDPSize,bool useGpu,string &workFi
   this->serverIp = serverIp;
   this->outputFile = outputFile;
   this->hostInfo = NULL;
-  this->endOfSearch = false;
+  this->endOfSearch.store(false, std::memory_order_release);
   this->saveRequest = false;
   this->connectedClient = 0;
   this->totalRW = 0;
-  this->collisionInSameHerd = 0;
+  this->collisionInSameHerd.store(0, std::memory_order_release);
   this->keyIdx = 0;
   this->splitWorkfile = splitWorkfile;
   this->pid = Timer::getPID();
@@ -282,9 +284,10 @@ bool Kangaroo::CollisionCheck(Int* d1,uint32_t type1,Int* d2,uint32_t type2) {
       Wd.Set(d1);
     }
 
-    endOfSearch = CheckKey(Td,Wd,0) || CheckKey(Td,Wd,1) || CheckKey(Td,Wd,2) || CheckKey(Td,Wd,3);
+    bool searchResult = CheckKey(Td,Wd,0) || CheckKey(Td,Wd,1) || CheckKey(Td,Wd,2) || CheckKey(Td,Wd,3);
+    endOfSearch.store(searchResult, std::memory_order_release);
 
-    if(!endOfSearch) {
+    if(!endOfSearch.load(std::memory_order_acquire)) {
 
       // Should not happen, reset the kangaroo
       ::printf("\n Unexpected wrong collision, reset kangaroo !\n");
@@ -393,20 +396,31 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
   ph->nbKangaroo = CPU_GRP_SIZE;
 
 #ifdef USE_SYMMETRY
-  ph->symClass = new uint64_t[CPU_GRP_SIZE];
+  auto symClass_ptr = std::make_unique<uint64_t[]>(CPU_GRP_SIZE);
+  ph->symClass = symClass_ptr.get();
   for(int i = 0; i<CPU_GRP_SIZE; i++) ph->symClass[i] = 0;
 #endif
 
-  IntGroup *grp = new IntGroup(CPU_GRP_SIZE);
-  Int *dx = new Int[CPU_GRP_SIZE];
+  auto grp = std::make_unique<IntGroup>(CPU_GRP_SIZE);
+  auto dx = std::make_unique<Int[]>(CPU_GRP_SIZE);
 
   if(ph->px==NULL) {
 
-    // Create Kangaroos, if not already loaded
-    ph->px = new Int[CPU_GRP_SIZE];
-    ph->py = new Int[CPU_GRP_SIZE];
-    ph->distance = new Int[CPU_GRP_SIZE];
+    // Create Kangaroos, if not already loaded - using modern C++ memory management
+    auto px_ptr = std::make_unique<Int[]>(CPU_GRP_SIZE);
+    auto py_ptr = std::make_unique<Int[]>(CPU_GRP_SIZE);
+    auto distance_ptr = std::make_unique<Int[]>(CPU_GRP_SIZE);
+
+    ph->px = px_ptr.get();
+    ph->py = py_ptr.get();
+    ph->distance = distance_ptr.get();
+
     CreateHerd(CPU_GRP_SIZE,ph->px,ph->py,ph->distance,TAME);
+
+    // Store smart pointers in thread parameter for cleanup
+    ph->px_owner = std::move(px_ptr);
+    ph->py_owner = std::move(py_ptr);
+    ph->distance_owner = std::move(distance_ptr);
 
   }
 
@@ -422,7 +436,7 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
   Int _s;
   Int _p;
 
-  while(!endOfSearch) {
+  while(!endOfSearch.load(std::memory_order_acquire)) {
 
     // Random walk
 
@@ -440,7 +454,7 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
 
     }
 
-    grp->Set(dx);
+    grp->Set(dx.get());
     grp->ModInv();
 
     for(int g = 0; g < CPU_GRP_SIZE; g++) {
@@ -503,36 +517,36 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
         lastSent = now;
       }
 
-      if(!endOfSearch) counters[thId] += CPU_GRP_SIZE;
+      if(!endOfSearch.load(std::memory_order_acquire)) counters[thId].fetch_add(CPU_GRP_SIZE, std::memory_order_relaxed);
 
     } else {
 
       // Add to table and collision check
-      for(int g = 0; g < CPU_GRP_SIZE && !endOfSearch; g++) {
+      for(int g = 0; g < CPU_GRP_SIZE && !endOfSearch.load(std::memory_order_acquire); g++) {
 
         if(IsDP(ph->px[g].bits64[3])) {
           LOCK(ghMutex);
-          if(!endOfSearch) {
+          if(!endOfSearch.load(std::memory_order_acquire)) {
 
             if(!AddToTable(&ph->px[g],&ph->distance[g],g % 2)) {
               // Collision inside the same herd
               // We need to reset the kangaroo
               CreateHerd(1,&ph->px[g],&ph->py[g],&ph->distance[g],g % 2,false);
-              collisionInSameHerd++;
+              collisionInSameHerd.fetch_add(1, std::memory_order_relaxed);
             }
 
           }
           UNLOCK(ghMutex);
         }
 
-        if(!endOfSearch) counters[thId] ++;
+        if(!endOfSearch.load(std::memory_order_acquire)) counters[thId].fetch_add(1, std::memory_order_relaxed);
 
       }
 
     }
 
     // Save request
-    if(saveRequest && !endOfSearch) {
+    if(saveRequest && !endOfSearch.load(std::memory_order_acquire)) {
       ph->isWaiting = true;
       LOCK(saveMutex);
       ph->isWaiting = false;
@@ -541,15 +555,10 @@ void Kangaroo::SolveKeyCPU(TH_PARAM *ph) {
 
   }
 
-  // Free
-  delete grp;
-  delete[] dx;
-  safe_delete_array(ph->px);
-  safe_delete_array(ph->py);
-  safe_delete_array(ph->distance);
-#ifdef USE_SYMMETRY
-  safe_delete_array(ph->symClass);
-#endif
+  // Modern C++ RAII: automatic cleanup when smart pointers go out of scope
+  // grp and dx are automatically cleaned up by unique_ptr destructors
+  // ph->px_owner, ph->py_owner, ph->distance_owner automatically clean up arrays
+  // No manual delete calls needed - RAII handles everything safely
 
   ph->isRunning = false;
 
@@ -595,7 +604,8 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
              dynamicMaxFound, totalGPUThreads, initDPSize);
   }
 
-  gpu = new GPUEngine(ph->gridSizeX,ph->gridSizeY,ph->gpuId,dynamicMaxFound);
+  ph->gpu_owner = std::make_unique<GPUEngine>(ph->gridSizeX,ph->gridSizeY,ph->gpuId,dynamicMaxFound);
+  gpu = ph->gpu_owner.get(); // Keep raw pointer for compatibility
 
   if(keyIdx == 0)
     ::printf("GPU: %s (%.1f MB used)\n",gpu->deviceName.c_str(),gpu->GetMemory() / 1048576.0);
@@ -606,11 +616,16 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
   if( ph->px==NULL ) {
     if(keyIdx == 0)
       ::printf("SolveKeyGPU Thread GPU#%d: creating kangaroos...\n",ph->gpuId);
-    // Create Kangaroos, if not already loaded
+    // Create Kangaroos, if not already loaded - using modern C++ memory management
     uint64_t nbThread = gpu->GetNbThread();
-    ph->px = new Int[ph->nbKangaroo];
-    ph->py = new Int[ph->nbKangaroo];
-    ph->distance = new Int[ph->nbKangaroo];
+
+    auto px_ptr = std::make_unique<Int[]>(ph->nbKangaroo);
+    auto py_ptr = std::make_unique<Int[]>(ph->nbKangaroo);
+    auto distance_ptr = std::make_unique<Int[]>(ph->nbKangaroo);
+
+    ph->px = px_ptr.get();
+    ph->py = py_ptr.get();
+    ph->distance = distance_ptr.get();
 
     for(uint64_t i = 0; i<nbThread; i++) {
       CreateHerd(GPU_GRP_SIZE,&(ph->px[i*GPU_GRP_SIZE]),
@@ -618,6 +633,11 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
                               &(ph->distance[i*GPU_GRP_SIZE]),
                               TAME);
     }
+
+    // Store smart pointers in thread parameter for cleanup
+    ph->px_owner = std::move(px_ptr);
+    ph->py_owner = std::move(py_ptr);
+    ph->distance_owner = std::move(distance_ptr);
   }
 
 #ifdef USE_SYMMETRY
@@ -629,10 +649,14 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
   gpu->SetKangaroos(ph->px,ph->py,ph->distance);
 
   if(workFile.length()==0 || !saveKangaroo) {
-    // No need to get back kangaroo, free memory
-    safe_delete_array(ph->px);
-    safe_delete_array(ph->py);
-    safe_delete_array(ph->distance);
+    // No need to get back kangaroo, release memory early
+    // Reset smart pointers to free memory immediately
+    ph->px_owner.reset();
+    ph->py_owner.reset();
+    ph->distance_owner.reset();
+    ph->px = nullptr;
+    ph->py = nullptr;
+    ph->distance = nullptr;
   }
 
   gpu->callKernel();
@@ -644,10 +668,10 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
 
   ph->hasStarted = true;
 
-  while(!endOfSearch) {
+  while(!endOfSearch.load(std::memory_order_acquire)) {
 
     gpu->Launch(gpuFound);
-    counters[thId] += ph->nbKangaroo * NB_RUN;
+    counters[thId].fetch_add(ph->nbKangaroo * NB_RUN, std::memory_order_relaxed);
 
     if( clientMode ) {
 
@@ -668,7 +692,7 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
 
         LOCK(ghMutex);
 
-        for(int g = 0; !endOfSearch && g < (int)gpuFound.size(); g++) {
+        for(int g = 0; !endOfSearch.load(std::memory_order_acquire) && g < (int)gpuFound.size(); g++) {
 
           uint32_t kType = (uint32_t)(gpuFound[g].kIdx % 2);
 
@@ -680,7 +704,7 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
             Int d;
             CreateHerd(1,&px,&py,&d,kType,false);
             gpu->SetKangaroo(gpuFound[g].kIdx,&px,&py,&d);
-            collisionInSameHerd++;
+            collisionInSameHerd.fetch_add(1, std::memory_order_relaxed);
           }
 
         }
@@ -690,7 +714,7 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
     }
 
     // Save request
-    if(saveRequest && !endOfSearch) {
+    if(saveRequest && !endOfSearch.load(std::memory_order_acquire)) {
       // Get kangaroos
       if(saveKangaroo)
         gpu->GetKangaroos(ph->px,ph->py,ph->distance);
@@ -703,10 +727,9 @@ void Kangaroo::SolveKeyGPU(TH_PARAM *ph) {
   }
 
 
-  safe_delete_array(ph->px);
-  safe_delete_array(ph->py);
-  safe_delete_array(ph->distance);
-  delete gpu;
+  // Modern C++ RAII: automatic cleanup when smart pointers go out of scope
+  // ph->px_owner, ph->py_owner, ph->distance_owner, ph->gpu_owner automatically clean up
+  // No manual delete calls needed - RAII handles everything safely
 
 #else
 
@@ -919,7 +942,7 @@ void Kangaroo::ComputeExpected(double dp,double *op,double *ram,double *overHead
 #endif
 
   // Kangaroo number
-  double k = (double)totalRW;
+  double k = (double)totalRW.load(std::memory_order_acquire);
 
   // Range size
   double N = pow(2.0,(double)rangePower);
@@ -1022,10 +1045,12 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
     ::exit(0);
   }
 
-  TH_PARAM *params = (TH_PARAM *)malloc(totalThread * sizeof(TH_PARAM));
-  THREAD_HANDLE *thHandles = (THREAD_HANDLE *)malloc(totalThread * sizeof(THREAD_HANDLE));
+  // Use modern C++ memory management with RAII
+  auto params = std::make_unique<TH_PARAM[]>(totalThread);
+  auto thHandles = std::make_unique<THREAD_HANDLE[]>(totalThread);
 
-  memset(params, 0,totalThread * sizeof(TH_PARAM));
+  // Initialize params array (unique_ptr arrays are zero-initialized by default)
+  std::memset(params.get(), 0, totalThread * sizeof(TH_PARAM));
   memset(counters, 0, sizeof(counters));
   ::printf("Number of CPU thread: %d\n", nbCPUThread);
 
@@ -1042,12 +1067,12 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
       params[nbCPUThread + i].gridSizeY = y;
     }
     params[nbCPUThread + i].nbKangaroo = (uint64_t)GPU_GRP_SIZE * x * y;
-    totalRW += params[nbCPUThread + i].nbKangaroo;
+    totalRW.fetch_add(params[nbCPUThread + i].nbKangaroo, std::memory_order_relaxed);
   }
 
 #endif
 
-  totalRW += nbCPUThread * (uint64_t)CPU_GRP_SIZE;
+  totalRW.fetch_add(nbCPUThread * (uint64_t)CPU_GRP_SIZE, std::memory_order_relaxed);
 
   // Set starting parameters
   if( clientMode ) {
@@ -1062,13 +1087,13 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
   InitRange();
   CreateJumpTable();
 
-  ::printf("Number of kangaroos: 2^%.2f\n",log2((double)totalRW));
+  ::printf("Number of kangaroos: 2^%.2f\n",log2((double)totalRW.load(std::memory_order_acquire)));
 
   if( !clientMode ) {
 
     // Compute suggested distinguished bits number for less than 5% overhead (see README)
     double dpOverHead;
-    int suggestedDP = (int)((double)rangePower / 2.0 - log2((double)totalRW));
+    int suggestedDP = (int)((double)rangePower / 2.0 - log2((double)totalRW.load(std::memory_order_acquire)));
     if(suggestedDP<0) suggestedDP=0;
     ComputeExpected((double)suggestedDP,&expectedNbOp,&expectedMem,&dpOverHead);
     while(dpOverHead>1.05 && suggestedDP>0) {
@@ -1098,7 +1123,7 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
   SetDP(initDPSize);
 
   // Fetch kangaroos (if any)
-  FectchKangaroos(params);
+  FectchKangaroos(params.get());
 
 //#define STATS
 #ifdef STATS
@@ -1115,17 +1140,19 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
 
       InitSearchKey();
 
-      endOfSearch = false;
-      collisionInSameHerd = 0;
+      endOfSearch.store(false, std::memory_order_release);
+      collisionInSameHerd.store(0, std::memory_order_release);
 
-      // Reset conters
-      memset(counters,0,sizeof(counters));
+      // Reset counters
+      for(int i = 0; i < 256; i++) {
+        counters[i].store(0, std::memory_order_release);
+      }
 
       // Lanch CPU threads
       for(int i = 0; i < nbCPUThread; i++) {
         params[i].threadId = i;
-        params[i].isRunning = true;
-        thHandles[i] = LaunchThread(_SolveKeyCPU,params + i);
+        params[i].isRunning.store(true, std::memory_order_release);
+        thHandles[i] = LaunchThread(_SolveKeyCPU, &params[i]);
       }
 
 #ifdef WITHGPU
@@ -1134,29 +1161,29 @@ void Kangaroo::Run(int nbThread,std::vector<int> gpuId,std::vector<int> gridSize
       for(int i = 0; i < nbGPUThread; i++) {
         int id = nbCPUThread + i;
         params[id].threadId = 0x80L + i;
-        params[id].isRunning = true;
+        params[id].isRunning.store(true, std::memory_order_release);
         params[id].gpuId = gpuId[i];
-        thHandles[id] = LaunchThread(_SolveKeyGPU,params + id);
+        thHandles[id] = LaunchThread(_SolveKeyGPU, &params[id]);
       }
 
 #endif
 
 
       // Wait for end
-      Process(params,"MK/s");
-      JoinThreads(thHandles,nbCPUThread + nbGPUThread);
-      FreeHandles(thHandles,nbCPUThread + nbGPUThread);
+      Process(params.get(),"MK/s");
+      JoinThreads(thHandles.get(),nbCPUThread + nbGPUThread);
+      FreeHandles(thHandles.get(),nbCPUThread + nbGPUThread);
       hashTable.Reset();
 
 #ifdef STATS
 
       uint64_t count = getCPUCount() + getGPUCount();
       totalCount += count;
-      totalDead += collisionInSameHerd;
+      totalDead += collisionInSameHerd.load(std::memory_order_acquire);
       double SN = pow(2.0,rangePower / 2.0);
       double avg = (double)totalCount / (double)(keyIdx + 1);
       ::printf("\n[%3d] 2^%.3f Dead:%d Avg:2^%.3f DeadAvg:%.1f (%.3f %.3f sqrt(N))\n",
-                              keyIdx, log2((double)count), (int)collisionInSameHerd, 
+                              keyIdx, log2((double)count), (int)collisionInSameHerd.load(std::memory_order_acquire),
                               log2(avg), (double)totalDead / (double)(keyIdx + 1),
                               avg/SN,expectedNbOp/SN);
     }

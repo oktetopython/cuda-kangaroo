@@ -1,0 +1,99 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "🐛 Debug Kangaroo",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_test/Debug/kangaroo.exe",
+            "args": ["-v"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "🏗️ Build Kangaroo (Debug)",
+            "internalConsoleOptions": "openOnSessionStart",
+            "logging": {
+                "moduleLoad": false,
+                "trace": false
+            },
+            "visualizerFile": "${workspaceFolder}/.vscode/natvis/kangaroo.natvis"
+        },
+        {
+            "name": "🎯 Debug Kangaroo with Test Key",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_test/Debug/kangaroo.exe",
+            "args": [
+                "-t", "4",
+                "-r", "100000000:1FFFFFFFF",
+                "03a355aa5e2e09dd44bb46a4722e9336e9e3ee4ee4e7b7a0cf5785b283bf2ab579"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "🏗️ Build Kangaroo (Debug)",
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": "🚀 Release Mode Test",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_test/Release/kangaroo.exe",
+            "args": ["-v"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "🏗️ Build Kangaroo (Release)",
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": "🔍 Memory Analysis",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_test/Debug/kangaroo.exe",
+            "args": ["-v"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "_NO_DEBUG_HEAP",
+                    "value": "1"
+                }
+            ],
+            "console": "integratedTerminal",
+            "preLaunchTask": "🏗️ Build Kangaroo (Debug)",
+            "internalConsoleOptions": "openOnSessionStart",
+            "logging": {
+                "moduleLoad": true,
+                "trace": true
+            }
+        },
+        {
+            "name": "🧪 Unit Test Debug",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build_test/Debug/test_runner.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "console": "integratedTerminal",
+            "preLaunchTask": "🏗️ Build Tests",
+            "internalConsoleOptions": "openOnSessionStart"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "🔄 Full Debug Pipeline",
+            "configurations": [
+                "🐛 Debug Kangaroo",
+                "🧪 Unit Test Debug"
+            ],
+            "stopAll": true,
+            "preLaunchTask": "🚀 Full Quality Check"
+        }
+    ]
+}

@@ -21,6 +21,7 @@
 #ifndef WIN64
 #include <string.h>
 #endif
+#include "ModernMemoryManager.h"
 
 #define GET(hash,id) E[hash].items[id]
 
@@ -35,9 +36,9 @@ void HashTable::Reset() {
   for(uint32_t h = 0; h < HASH_SIZE; h++) {
     if(E[h].items) {
       for(uint32_t i = 0; i<E[h].nbItem; i++)
-        free(E[h].items[i]);
+        delete E[h].items[i];
     }
-    safe_free(E[h].items);
+    if(E[h].items) { delete[] E[h].items; E[h].items = nullptr; }
     E[h].maxItem = 0;
     E[h].nbItem = 0;
   }
@@ -56,11 +57,17 @@ uint64_t HashTable::GetNbItem() {
 
 ENTRY *HashTable::CreateEntry(int128_t *x,int128_t *d) {
 
-  ENTRY *e = (ENTRY *)malloc(sizeof(ENTRY));
+  // Use modern C++ allocation with proper exception safety
+  ENTRY *e = new(std::nothrow) ENTRY;
+  if (!e) {
+    throw std::bad_alloc();
+  }
+  
   e->x.i64[0] = x->i64[0];
   e->x.i64[1] = x->i64[1];
   e->d.i64[0] = d->i64[0];
   e->d.i64[1] = d->i64[1];
+  
   return e;
 
 }
@@ -133,7 +140,8 @@ int HashTable::MergeH(uint32_t h,FILE* f1,FILE* f2,FILE* fd,uint32_t* nbDP,uint3
 
   }
 
-  ENTRY *output = (ENTRY *)malloc( md * sizeof(ENTRY) );
+  auto output_ptr = std::make_unique<ENTRY[]>(md);
+  ENTRY *output = output_ptr.get();
 
   ENTRY e1;
   ENTRY e2;
@@ -211,7 +219,7 @@ int HashTable::MergeH(uint32_t h,FILE* f1,FILE* f2,FILE* fd,uint32_t* nbDP,uint3
   ::fwrite(&nbd,sizeof(uint32_t),1,fd);
   ::fwrite(&md,sizeof(uint32_t),1,fd);
   ::fwrite(output,32,nbd,fd);
-  free(output);
+  // output automatically freed by unique_ptr destructor
 
   *nbDP = nbd;
   return (collisionFound?ADD_COLLISION:ADD_OK);
@@ -232,10 +240,13 @@ int HashTable::Add(Int *x,Int *d,uint32_t type) {
 void HashTable::ReAllocate(uint64_t h,uint32_t add) {
 
   E[h].maxItem += add;
-  ENTRY** nitems = (ENTRY**)malloc(sizeof(ENTRY*) * E[h].maxItem);
-  memcpy(nitems,E[h].items,sizeof(ENTRY*) * E[h].nbItem);
-  free(E[h].items);
-  E[h].items = nitems;
+  auto nitems = std::make_unique<ENTRY*[]>(E[h].maxItem);
+
+  if (E[h].items) {
+    std::memcpy(nitems.get(), E[h].items, sizeof(ENTRY*) * E[h].nbItem);
+    delete[] E[h].items;  // Still need to delete old array since it wasn't managed by unique_ptr
+  }
+  E[h].items = nitems.release();  // Transfer ownership to raw pointer (for compatibility)
 
 }
 
@@ -263,7 +274,9 @@ int HashTable::Add(uint64_t h,ENTRY* e) {
 
   if(E[h].maxItem == 0) {
     E[h].maxItem = 16;
-    E[h].items = (ENTRY **)malloc(sizeof(ENTRY *) * E[h].maxItem);
+    // Use modern C++ allocation with RAII
+    auto items_ptr = std::make_unique<ENTRY*[]>(E[h].maxItem);
+    E[h].items = items_ptr.release(); // Transfer ownership to raw pointer for compatibility
   }
 
   if(E[h].nbItem == 0) {
@@ -350,7 +363,7 @@ std::string HashTable::GetSizeInfo() {
   }
 
   char ret[256];
-  sprintf(ret,"%.1f/%.1f%s",usedMB,totalMB,unit);
+  snprintf(ret, sizeof(ret), "%.1f/%.1f%s", usedMB, totalMB, unit);
 
   return std::string(ret);
 
@@ -361,7 +374,7 @@ std::string HashTable::GetStr(int128_t *i) {
   std::string ret;
   char tmp[256];
   for(int n=3;n>=0;n--) {
-    ::sprintf(tmp,"%08X",i->i32[n]); 
+    ::snprintf(tmp, sizeof(tmp), "%08X", i->i32[n]); 
     ret += std::string(tmp);
   }
   return ret;

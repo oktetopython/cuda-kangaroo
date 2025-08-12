@@ -152,7 +152,7 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
   ::printf("File %s: [DP%d]\n",file1.c_str(),dp1);
   ::printf("File %s: [DP%d]\n",file2.c_str(),dp2);
 
-  endOfSearch = false;
+  endOfSearch.store(false, std::memory_order_release);
 
   // Set starting parameters
   keysToSearch.clear();
@@ -198,7 +198,7 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
   Int d2;
   uint32_t type2;
 
-  for(uint32_t h=0;h<HASH_SIZE && !endOfSearch;h++) {
+  for(uint32_t h=0;h<HASH_SIZE && !endOfSearch.load(std::memory_order_acquire);h++) {
 
     if(h % (HASH_SIZE / 64) == 0) CommonUtils::printProgress(".");
 
@@ -212,7 +212,7 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
     }
 
     nbDP += hDP;
-    collisionInSameHerd += hDuplicate;
+    collisionInSameHerd.fetch_add(hDuplicate, std::memory_order_relaxed);
 
   }
 
@@ -222,7 +222,7 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
 
   t1 = Timer::get_tick();
 
-  if(!endOfSearch) {
+  if(!endOfSearch.load(std::memory_order_acquire)) {
 
     remove(dest.c_str());
     rename(tmpName.c_str(),dest.c_str());
@@ -238,9 +238,9 @@ bool Kangaroo::MergeWork(std::string& file1,std::string& file2,std::string& dest
 
   if(printStat) {
 #ifdef WIN64
-    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd.load(std::memory_order_acquire));
 #else
-    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd.load(std::memory_order_acquire));
 #endif
     ::printf("Total f1+f2: DP count 2^%.2f\n",log2((double)nbDP));
   } else {

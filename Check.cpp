@@ -18,6 +18,8 @@
 #include "Kangaroo.h"
 #include <fstream>
 #include "SECPK1/IntGroup.h"
+#include "ModernMemoryManager.h"
+#include "ModernMemoryManager.h"
 
 // Macro to suppress fread return value warnings
 #define SAFE_FREAD(ptr, size, count, stream) \
@@ -230,7 +232,7 @@ void Kangaroo::CheckPartition(int nbCore,std::string& partName) {
   keysToSearch.clear();
   keysToSearch.push_back(k1);
   keyIdx = 0;
-  collisionInSameHerd = 0;
+  collisionInSameHerd.store(0, std::memory_order_release);
   rangeStart.Set(&RS1);
   rangeEnd.Set(&RE1);
   InitRange();
@@ -243,9 +245,9 @@ void Kangaroo::CheckPartition(int nbCore,std::string& partName) {
   ::printf("Thread: %d\n",nbThread);
   ::printf("CheckingPart");
 
-  TH_PARAM* params = (TH_PARAM*)malloc(nbThread * sizeof(TH_PARAM));
-  THREAD_HANDLE* thHandles = (THREAD_HANDLE*)malloc(nbThread * sizeof(THREAD_HANDLE));
-  memset(params,0,nbThread * sizeof(TH_PARAM));
+  // Use RAII for automatic memory management
+  auto params = std::make_unique<TH_PARAM[]>(nbThread);
+  auto thHandles = std::make_unique<THREAD_HANDLE[]>(nbThread);
   uint64_t nbDP = 0;
   uint64_t nbWrong = 0;
 
@@ -255,15 +257,15 @@ void Kangaroo::CheckPartition(int nbCore,std::string& partName) {
 
     for(int i = 0; i < nbThread; i++) {
       params[i].threadId = i;
-      params[i].isRunning = true;
+      params[i].isRunning.store(true, std::memory_order_release);
       params[i].hStart = p + i;
       params[i].hStop = 0;
       params[i].part1Name = _strdup(partName.c_str());
-      thHandles[i] = LaunchThread(_checkPartThread,params + i);
+      thHandles[i] = LaunchThread(_checkPartThread, params.get() + i);
     }
 
-    JoinThreads(thHandles,nbThread);
-    FreeHandles(thHandles,nbThread);
+    JoinThreads(thHandles.get(), nbThread);
+    FreeHandles(thHandles.get(), nbThread);
 
     for(int i = 0; i < nbThread; i++) {
       free(params[i].part1Name);
@@ -273,8 +275,7 @@ void Kangaroo::CheckPartition(int nbCore,std::string& partName) {
 
   }
 
-  free(params);
-  free(thHandles);
+  // RAII automatically handles cleanup - no manual free() needed
 
   t1 = Timer::get_tick();
 
@@ -345,7 +346,7 @@ void Kangaroo::CheckWorkFile(int nbCore,std::string& fileName) {
   keysToSearch.clear();
   keysToSearch.push_back(k1);
   keyIdx = 0;
-  collisionInSameHerd = 0;
+  collisionInSameHerd.store(0, std::memory_order_release);
   rangeStart.Set(&RS1);
   rangeEnd.Set(&RE1);
   InitRange();
@@ -359,9 +360,9 @@ void Kangaroo::CheckWorkFile(int nbCore,std::string& fileName) {
   ::printf("Thread: %d\n",nbThread);
   ::printf("Checking");
 
-  TH_PARAM* params = (TH_PARAM*)malloc(nbThread * sizeof(TH_PARAM));
-  THREAD_HANDLE* thHandles = (THREAD_HANDLE*)malloc(nbThread * sizeof(THREAD_HANDLE));
-  memset(params,0,nbThread * sizeof(TH_PARAM));
+  // Use RAII for automatic memory management
+  auto params = std::make_unique<TH_PARAM[]>(nbThread);
+  auto thHandles = std::make_unique<THREAD_HANDLE[]>(nbThread);
 
   int block = HASH_SIZE / 64;
 
@@ -379,13 +380,13 @@ void Kangaroo::CheckWorkFile(int nbCore,std::string& fileName) {
 
     for(int i = 0; i < nbThread; i++) {
       params[i].threadId = i;
-      params[i].isRunning = true;
+      params[i].isRunning.store(true, std::memory_order_release);
       params[i].hStart = S + i * stride;
       params[i].hStop = S + (i + 1) * stride;
-      thHandles[i] = LaunchThread(_checkWorkThread,params + i);
+      thHandles[i] = LaunchThread(_checkWorkThread, params.get() + i);
     }
-    JoinThreads(thHandles,nbThread);
-    FreeHandles(thHandles,nbThread);
+    JoinThreads(thHandles.get(), nbThread);
+    FreeHandles(thHandles.get(), nbThread);
 
     for(int i = 0; i < nbThread; i++)
       nbWrong += params[i].hStop;
@@ -396,8 +397,7 @@ void Kangaroo::CheckWorkFile(int nbCore,std::string& fileName) {
   }
 
   ::fclose(f1);
-  free(params);
-  free(thHandles);
+  // RAII automatically handles cleanup - no manual free() needed
 
   t1 = Timer::get_tick();
 
@@ -505,27 +505,28 @@ void Kangaroo::Check(std::vector<int> gpuId,std::vector<int> gridSize) {
 
     int nb = h.GetNbThread() * GPU_GRP_SIZE;
 
-    Int *gpuPx = new Int[nb];
-    Int *gpuPy = new Int[nb];
-    Int *gpuD = new Int[nb];
-    Int *cpuPx = new Int[nb];
-    Int *cpuPy = new Int[nb];
-    Int *cpuD = new Int[nb];
-    uint64_t *lastJump = new uint64_t[nb];
+    // Modern C++ RAII memory management
+    auto gpuPx = std::make_unique<Int[]>(nb);
+    auto gpuPy = std::make_unique<Int[]>(nb);
+    auto gpuD = std::make_unique<Int[]>(nb);
+    auto cpuPx = std::make_unique<Int[]>(nb);
+    auto cpuPy = std::make_unique<Int[]>(nb);
+    auto cpuD = std::make_unique<Int[]>(nb);
+    auto lastJump = std::make_unique<uint64_t[]>(nb);
     vector<ITEM> gpuFound;
 
     Int pk;
     pk.Rand(256);
     keyToSearch = secp->ComputePublicKey(&pk);
 
-    CreateHerd(nb,cpuPx,cpuPy,cpuD,TAME);
+    CreateHerd(nb,cpuPx.get(),cpuPy.get(),cpuD.get(),TAME);
     for(int i=0;i<nb;i++) lastJump[i]=NB_JUMP;
 
     CreateJumpTable();
 
     h.SetParams(dMask,jumpDistance,jumpPointx,jumpPointy);
     h.SetWildOffset(&rangeWidthDiv2);
-    h.SetKangaroos(cpuPx,cpuPy,cpuD);
+    h.SetKangaroos(cpuPx.get(),cpuPy.get(),cpuD.get());
 
     // Test single
     uint64_t r = rndl() % nb;
@@ -533,7 +534,7 @@ void Kangaroo::Check(std::vector<int> gpuId,std::vector<int> gridSize) {
     h.SetKangaroo(r,&cpuPx[r],&cpuPy[r],&cpuD[r]);
 
     h.Launch(gpuFound);
-    h.GetKangaroos(gpuPx,gpuPy,gpuD);
+    h.GetKangaroos(gpuPx.get(),gpuPy.get(),gpuD.get());
     h.Launch(gpuFound);
     ::printf("DP found: %d\n",(int)gpuFound.size());
 

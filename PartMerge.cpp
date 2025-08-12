@@ -48,9 +48,9 @@ string Kangaroo::GetPartName(std::string& partName,int i,bool tmpPart) {
 
   char tmp[256];
   if(tmpPart)
-    sprintf(tmp,"part%03d.tmp",i);
+    snprintf(tmp, sizeof(tmp), "part%03d.tmp", i);
   else
-    sprintf(tmp,"part%03d",i);
+    snprintf(tmp, sizeof(tmp), "part%03d", i);
   string pName = partName + "/" + string(tmp);
 
   return pName;
@@ -160,7 +160,7 @@ bool Kangaroo::MergePartition(TH_PARAM* p) {
   Int d2;
   uint32_t type2;
 
-  for(uint32_t h = hStart; h < hStop && !endOfSearch; h++) {
+  for(uint32_t h = hStart; h < hStop && !endOfSearch.load(std::memory_order_acquire); h++) {
 
     int mStatus = HashTable::MergeH(h,f1,f2,f,&hDP,&hDuplicate,&d1,&type1,&d2,&type2);
     switch(mStatus) {
@@ -173,7 +173,7 @@ bool Kangaroo::MergePartition(TH_PARAM* p) {
 
     // Counting overflow after (2^32)*MARGE_PART DP
     p->hStop += hDP;
-    collisionInSameHerd += hDuplicate;
+    collisionInSameHerd.fetch_add(hDuplicate, std::memory_order_relaxed);
 
   }
 
@@ -184,7 +184,7 @@ bool Kangaroo::MergePartition(TH_PARAM* p) {
   // Rename
   string oldName = GetPartName(p1Name,part,true);
   string newName = GetPartName(p1Name,part,false);
-  if(!endOfSearch) {
+  if(!endOfSearch.load(std::memory_order_acquire)) {
     remove(newName.c_str());
     rename(oldName.c_str(),newName.c_str());
   } else {
@@ -386,7 +386,7 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
 
     for(int i = 0; i < nbThread; i++) {
       params[i].threadId = i;
-      params[i].isRunning = true;
+      params[i].isRunning.store(true, std::memory_order_release);
       params[i].hStart = p+i;
       params[i].hStop = 0;
       params[i].part1Name = _strdup(part1Name.c_str());
@@ -417,9 +417,9 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
   } else {
 
 #ifdef WIN64
-    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd.load(std::memory_order_acquire));
 #else
-    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd.load(std::memory_order_acquire));
 #endif
     ::printf("Total f1+f2: DP count 2^%.2f\n",log2((double)nbDP));
     return true;
@@ -427,9 +427,9 @@ bool Kangaroo::MergeWorkPartPart(std::string& part1Name,std::string& part2Name) 
   }
 
 #ifdef WIN64
-  ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd);
+  ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd.load(std::memory_order_acquire));
 #else
-  ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd);
+  ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd.load(std::memory_order_acquire));
 #endif
   ::printf("Total f1+f2: DP count 2^%.2f\n",log2((double)nbDP));
 
@@ -686,7 +686,7 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
   Int d2;
   uint32_t type2;
 
-  for(int part = 0; part < MERGE_PART && !endOfSearch; part++) {
+  for(int part = 0; part < MERGE_PART && !endOfSearch.load(std::memory_order_acquire); part++) {
 
     if(part % (MERGE_PART / 64) == 0) ::printf(".");
 
@@ -697,7 +697,7 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
     FILE *f1 = OpenPart(partName,"rb",part);
     FILE *f = OpenPart(partName,"wb",part,true);
 
-    for(uint32_t h = hStart; h < hStop && !endOfSearch; h++) {
+    for(uint32_t h = hStart; h < hStop && !endOfSearch.load(std::memory_order_acquire); h++) {
 
       int mStatus = HashTable::MergeH(h,f1,f2,f,&hDP,&hDuplicate,&d1,&type1,&d2,&type2);
       switch(mStatus) {
@@ -709,7 +709,7 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
       }
 
       nbDP += hDP;
-      collisionInSameHerd += hDuplicate;
+      collisionInSameHerd.fetch_add(hDuplicate, std::memory_order_relaxed);
 
     }
 
@@ -739,9 +739,9 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
   } else {
 
 #ifdef WIN64
-    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd.load(std::memory_order_acquire));
 #else
-    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd.load(std::memory_order_acquire));
 #endif
     ::printf("Total f1+f2: DP count 2^%.2f\n",log2((double)nbDP));
     return true;
@@ -750,9 +750,9 @@ bool Kangaroo::MergeWorkPart(std::string& partName,std::string& file2,bool print
 
   if(printStat) {
 #ifdef WIN64
-    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %I64d\n",collisionInSameHerd.load(std::memory_order_acquire));
 #else
-    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd);
+    ::printf("Dead kangaroo: %" PRId64 "\n",collisionInSameHerd.load(std::memory_order_acquire));
 #endif
     ::printf("Total f1+f2: DP count 2^%.2f\n",log2((double)nbDP));
   } else {

@@ -89,6 +89,13 @@ private:
   inline void SetCoordinateData(int group, int thread, int coord_base, const uint64_t *data, int word_count);
   inline void GetCoordinateData(int group, int thread, int coord_base, uint64_t *data, int word_count) const;
   inline bool SetSingleCoordinateToGPU(uint64_t kIdx, int coord_word, uint64_t value);
+  inline bool SetKangarooBatch(uint64_t kIdx, Int *px, Int *py, Int *d); // Optimized batch transfer
+
+  // Error handling and cleanup functions
+  void CleanupOnConstructorFailure(); // Cleanup on constructor failure to prevent memory leaks
+  bool CheckCudaStreamStatus();       // Check CUDA stream status for errors
+  bool CheckGPUMemoryStatus();        // Check GPU memory status and pointer validity
+  bool CheckCudaContextStatus();      // Check CUDA context status and device accessibility
 
   Int wildOffset;
   int nbThread;

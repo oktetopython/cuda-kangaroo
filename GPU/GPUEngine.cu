@@ -221,11 +221,19 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
            nbThreadPerGroup);
   deviceName = std::string(tmp);
 
-  // Prefer L1 (We do not use __shared__ at all)
-  err = cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
-  if (!CheckCudaError(err, "cudaDeviceSetCacheConfig"))
+  // Prefer L1 cache for better performance (We do not use __shared__ memory at all)
+  // Note: cudaDeviceSetCacheConfig is deprecated since CUDA 9.0
+  // Using modern per-function cache configuration instead
+  err = cudaFuncSetCacheConfig(comp_kangaroos, cudaFuncCachePreferL1);
+  if (!CheckCudaError(err, "cudaFuncSetCacheConfig for comp_kangaroos"))
   {
-    return;
+    // If per-function config fails, try the legacy device-wide setting for compatibility
+    err = cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+    if (!CheckCudaError(err, "cudaDeviceSetCacheConfig (fallback)"))
+    {
+      printf("Warning: Failed to set cache configuration, continuing with default settings\n");
+      // Don't return here - cache config failure shouldn't prevent initialization
+    }
   }
 
   // Allocate memory
@@ -241,6 +249,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
   err = cudaMalloc((void **)&inputKangaroo, kangarooSize);
   if (!CheckCudaError(err, "cudaMalloc(inputKangaroo)"))
   {
+    CleanupOnConstructorFailure();
     return;
   }
 
@@ -249,6 +258,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
                       cudaHostAllocWriteCombined | cudaHostAllocMapped);
   if (!CheckCudaError(err, "cudaHostAlloc(inputKangarooPinned)"))
   {
+    CleanupOnConstructorFailure();
     return;
   }
 
@@ -256,12 +266,14 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
   err = cudaMalloc((void **)&outputItem, outputSize);
   if (!CheckCudaError(err, "cudaMalloc(outputItem)"))
   {
+    CleanupOnConstructorFailure();
     return;
   }
 
   err = cudaHostAlloc(&outputItemPinned, outputSize, cudaHostAllocMapped);
   if (!CheckCudaError(err, "cudaHostAlloc(outputItemPinned)"))
   {
+    CleanupOnConstructorFailure();
     return;
   }
 
@@ -270,6 +282,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
   err = cudaHostAlloc(&jumpPinned, jumpSize, cudaHostAllocMapped);
   if (!CheckCudaError(err, "cudaHostAlloc(jumpPinned)"))
   {
+    CleanupOnConstructorFailure();
     return;
   }
 
@@ -421,6 +434,140 @@ void GPUEngine::ForceGPUCleanup()
   }
 }
 
+void GPUEngine::CleanupOnConstructorFailure()
+{
+  // Cleanup function to prevent memory leaks when constructor fails
+  // Only cleanup resources that have been successfully allocated
+
+  if (inputKangaroo)
+  {
+    cudaFree(inputKangaroo);
+    inputKangaroo = NULL;
+  }
+
+  if (inputKangarooPinned)
+  {
+    cudaFreeHost(inputKangarooPinned);
+    inputKangarooPinned = NULL;
+  }
+
+  if (outputItem)
+  {
+    cudaFree(outputItem);
+    outputItem = NULL;
+  }
+
+  if (outputItemPinned)
+  {
+    cudaFreeHost(outputItemPinned);
+    outputItemPinned = NULL;
+  }
+
+  if (jumpPinned)
+  {
+    cudaFreeHost(jumpPinned);
+    jumpPinned = NULL;
+  }
+
+  initialised = false;
+}
+
+bool GPUEngine::CheckCudaStreamStatus()
+{
+  // Check the status of the default CUDA stream
+  cudaError_t err = cudaStreamQuery(0); // 0 is the default stream
+
+  if (err == cudaSuccess)
+  {
+    return true; // Stream is idle (all operations completed)
+  }
+  else if (err == cudaErrorNotReady)
+  {
+    return true; // Stream is busy but no error
+  }
+  else
+  {
+    // Stream has an error
+    CheckCudaError(err, "CheckCudaStreamStatus: stream error detected");
+    return false;
+  }
+}
+
+bool GPUEngine::CheckGPUMemoryStatus()
+{
+  // Check GPU memory status and detect potential corruption
+  size_t free_mem, total_mem;
+  cudaError_t err = cudaMemGetInfo(&free_mem, &total_mem);
+
+  if (!CheckCudaError(err, "CheckGPUMemoryStatus: cudaMemGetInfo"))
+  {
+    return false;
+  }
+
+  // Check if we have sufficient memory (at least 10% free)
+  if (free_mem < (total_mem / 10))
+  {
+    printf("Warning: GPU memory is critically low (Free: %zu MB, Total: %zu MB)\n",
+           free_mem / (1024 * 1024), total_mem / (1024 * 1024));
+  }
+
+  // Verify our allocated memory is still valid by checking pointers
+  if (initialised)
+  {
+    // Check if our device pointers are still valid
+    cudaPointerAttributes attr;
+    err = cudaPointerGetAttributes(&attr, inputKangaroo);
+    if (err != cudaSuccess)
+    {
+      CheckCudaError(err, "CheckGPUMemoryStatus: inputKangaroo pointer invalid");
+      return false;
+    }
+
+    err = cudaPointerGetAttributes(&attr, outputItem);
+    if (err != cudaSuccess)
+    {
+      CheckCudaError(err, "CheckGPUMemoryStatus: outputItem pointer invalid");
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool GPUEngine::CheckCudaContextStatus()
+{
+  // Check CUDA context status and device accessibility
+  int currentDevice;
+  cudaError_t err = cudaGetDevice(&currentDevice);
+  if (!CheckCudaError(err, "CheckCudaContextStatus: cudaGetDevice"))
+  {
+    return false;
+  }
+
+  // Verify device properties are still accessible
+  cudaDeviceProp prop;
+  err = cudaGetDeviceProperties(&prop, currentDevice);
+  if (!CheckCudaError(err, "CheckCudaContextStatus: cudaGetDeviceProperties"))
+  {
+    return false;
+  }
+
+  // Check if context is still valid by performing a simple operation
+  void *testPtr;
+  err = cudaMalloc(&testPtr, 1);
+  if (err == cudaSuccess)
+  {
+    cudaFree(testPtr); // Clean up test allocation
+  }
+  else
+  {
+    CheckCudaError(err, "CheckCudaContextStatus: context validation failed");
+    return false;
+  }
+
+  return true;
+}
+
 // CudaMemoryGuard destructor implementation
 CudaMemoryGuard::~CudaMemoryGuard()
 {
@@ -556,6 +703,78 @@ inline bool GPUEngine::SetSingleCoordinateToGPU(uint64_t kIdx, int coord_word, u
   return CheckCudaError(err, "SetSingleCoordinateToGPU", false, "kangaroo", static_cast<int>(kIdx));
 }
 
+// Optimized batch transfer function for single kangaroo - eliminates multiple small cudaMemcpy calls
+inline bool GPUEngine::SetKangarooBatch(uint64_t kIdx, Int *px, Int *py, Int *d)
+{
+  // Calculate block, group, thread from kangaroo index
+  int gSize = KSIZE * GPU_GRP_SIZE;
+  int strideSize = nbThreadPerGroup * KSIZE;
+  int blockSize = nbThreadPerGroup * gSize;
+
+  uint64_t t = kIdx % nbThreadPerGroup;
+  uint64_t g = (kIdx / nbThreadPerGroup) % GPU_GRP_SIZE;
+  uint64_t b = kIdx / (nbThreadPerGroup * GPU_GRP_SIZE);
+
+  // Validate indices
+  if (b >= (uint64_t)(nbThread / nbThreadPerGroup) || g >= GPU_GRP_SIZE || t >= (uint64_t)nbThreadPerGroup)
+  {
+    printf("GPUEngine: SetKangarooBatch: Invalid kangaroo index %llu\n", kIdx);
+    return false;
+  }
+
+  // Prepare distance with wild offset
+  Int dOff;
+  dOff.Set(d);
+  if (kIdx % 2 == WILD)
+    dOff.ModAddK1order(&wildOffset);
+
+  // Batch all coordinate updates into a single buffer
+  // Layout: [X0,X1,X2,X3,Y0,Y1,Y2,Y3,D0,D1,JUMP]
+  uint64_t batchData[11];
+
+  // X coordinate (4 words)
+  for (int i = 0; i < 4; i++)
+    batchData[i] = px->bits64[i];
+
+  // Y coordinate (4 words)
+  for (int i = 0; i < 4; i++)
+    batchData[4 + i] = py->bits64[i];
+
+  // Distance (2 words)
+  batchData[8] = dOff.bits64[0];
+  batchData[9] = dOff.bits64[1];
+
+#ifdef USE_SYMMETRY
+  // Last jump count (1 word)
+  batchData[10] = (uint64_t)NB_JUMP;
+  int totalWords = 11;
+#else
+  int totalWords = 10;
+#endif
+
+  // Use strided memory copy for optimal GPU memory layout
+  size_t baseOffset = b * blockSize + g * strideSize + t;
+
+  // Prepare batch data for strided memory transfer
+  for (int i = 0; i < totalWords; i++)
+  {
+    inputKangarooPinned[i] = batchData[i];
+  }
+
+  // Single batched memory transfer instead of multiple small transfers
+  cudaError_t err = cudaMemcpy2D(
+      inputKangaroo + baseOffset,          // dst
+      nbThreadPerGroup * sizeof(uint64_t), // dpitch (stride between elements)
+      inputKangarooPinned,                 // src
+      sizeof(uint64_t),                    // spitch (contiguous source)
+      sizeof(uint64_t),                    // width (element size)
+      totalWords,                          // height (number of elements)
+      cudaMemcpyHostToDevice               // kind
+  );
+
+  return CheckCudaError(err, "SetKangarooBatch", false, "kangaroo", static_cast<int>(kIdx));
+}
+
 void GPUEngine::SetKangaroos(Int *px, Int *py, Int *d)
 {
 
@@ -597,11 +816,16 @@ void GPUEngine::SetKangaroos(Int *px, Int *py, Int *d)
     }
 
     uint32_t offset = b * blockSize;
-    cudaMemcpy(inputKangaroo + offset, inputKangarooPinned, kangarooSizePinned, cudaMemcpyHostToDevice);
+    cudaError_t err = cudaMemcpy(inputKangaroo + offset, inputKangarooPinned, kangarooSizePinned, cudaMemcpyHostToDevice);
+    if (!CheckCudaError(err, "SetKangaroos: cudaMemcpy block transfer", false, "block", b))
+    {
+      return; // Early return on memory transfer failure
+    }
   }
 
-  cudaError_t err = cudaGetLastError();
-  CheckCudaError(err, "SetKangaroos");
+  // Final error check for any remaining CUDA errors
+  cudaError_t finalErr = cudaGetLastError();
+  CheckCudaError(finalErr, "SetKangaroos: final check");
 }
 
 void GPUEngine::GetKangaroos(Int *px, Int *py, Int *d)
@@ -659,52 +883,51 @@ void GPUEngine::GetKangaroos(Int *px, Int *py, Int *d)
 
 void GPUEngine::SetKangaroo(uint64_t kIdx, Int *px, Int *py, Int *d)
 {
-  // Using safer approach with helper function to eliminate manual index calculations
+  // PERFORMANCE OPTIMIZATION: Use batch transfer instead of multiple small cudaMemcpy calls
+  // This eliminates the inefficient pattern of 11 separate GPU memory transfers per kangaroo
 
-  // X coordinate - copy all 4 64-bit words (coordinates 0-3)
-  for (int i = 0; i < 4; i++)
-  {
-    if (!SetSingleCoordinateToGPU(kIdx, i, px->bits64[i]))
-      return;
-  }
+  // Use optimized batch transfer function
+  SetKangarooBatch(kIdx, px, py, d);
 
-  // Y coordinate - copy all 4 64-bit words (coordinates 4-7)
-  for (int i = 0; i < 4; i++)
-  {
-    if (!SetSingleCoordinateToGPU(kIdx, 4 + i, py->bits64[i]))
-      return;
-  }
-
-  // Distance - apply wild offset and copy 2 64-bit words (coordinates 8-9)
-  Int dOff;
-  dOff.Set(d);
-  if (kIdx % 2 == WILD)
-    dOff.ModAddK1order(&wildOffset);
-
-  for (int i = 0; i < 2; i++)
-  {
-    if (!SetSingleCoordinateToGPU(kIdx, 8 + i, dOff.bits64[i]))
-      return;
-  }
-
-#ifdef USE_SYMMETRY
-  // Last jump count (coordinate 10)
-  if (!SetSingleCoordinateToGPU(kIdx, 10, (uint64_t)NB_JUMP))
-    return;
-#endif
+  // Legacy fallback method (kept for debugging/compatibility if needed)
+  // The old method made 11 separate cudaMemcpy calls which is highly inefficient:
+  // - 4 calls for X coordinate
+  // - 4 calls for Y coordinate
+  // - 2 calls for distance
+  // - 1 call for jump count (if USE_SYMMETRY)
+  //
+  // The new batch method reduces this to a single strided cudaMemcpy2D call
 }
 
 bool GPUEngine::callKernel()
 {
 
-  // Reset nbFound
-  cudaMemset(outputItem, 0, 4);
+  // Reset nbFound with error checking
+  cudaError_t err = cudaMemset(outputItem, 0, 4);
+  if (!CheckCudaError(err, "callKernel: cudaMemset"))
+  {
+    return false;
+  }
 
   // Call the kernel (Perform STEP_SIZE keys per thread)
   comp_kangaroos<<<nbThread / nbThreadPerGroup, nbThreadPerGroup>>>(inputKangaroo, maxFound, outputItem, dpMask);
 
-  cudaError_t err = cudaGetLastError();
-  return CheckCudaError(err, "Kernel", true);
+  // Check for kernel launch errors
+  err = cudaGetLastError();
+  if (!CheckCudaError(err, "callKernel: kernel launch", true))
+  {
+    return false;
+  }
+
+// For critical operations, ensure kernel execution completes successfully
+// Note: This is optional for performance reasons, but provides better error detection
+#ifdef CUDA_STRICT_ERROR_CHECKING
+  err = cudaDeviceSynchronize();
+  if (!CheckCudaError(err, "callKernel: device synchronization", true))
+  {
+    return false;
+  }
+#endif
 
   return true;
 }
@@ -716,8 +939,7 @@ void GPUEngine::SetParams(uint64_t dpMask, Int *distance, Int *px, Int *py)
 
   for (int i = 0; i < NB_JUMP; i++)
     memcpy(jumpPinned + 2 * i, distance[i].bits64, 16);
-  cudaMemcpyToSymbol(jD, jumpPinned, jumpSize / 2);
-  cudaError_t err = cudaGetLastError();
+  cudaError_t err = cudaMemcpyToSymbol(jD, jumpPinned, jumpSize / 2);
   if (!CheckCudaError(err, "SetParams: Failed to copy jD to constant memory"))
   {
     return;
@@ -725,8 +947,7 @@ void GPUEngine::SetParams(uint64_t dpMask, Int *distance, Int *px, Int *py)
 
   for (int i = 0; i < NB_JUMP; i++)
     memcpy(jumpPinned + 4 * i, px[i].bits64, 32);
-  cudaMemcpyToSymbol(jPx, jumpPinned, jumpSize);
-  err = cudaGetLastError();
+  err = cudaMemcpyToSymbol(jPx, jumpPinned, jumpSize);
   if (!CheckCudaError(err, "SetParams: Failed to copy jPx to constant memory"))
   {
     return;
@@ -734,8 +955,7 @@ void GPUEngine::SetParams(uint64_t dpMask, Int *distance, Int *px, Int *py)
 
   for (int i = 0; i < NB_JUMP; i++)
     memcpy(jumpPinned + 4 * i, py[i].bits64, 32);
-  cudaMemcpyToSymbol(jPy, jumpPinned, jumpSize);
-  err = cudaGetLastError();
+  err = cudaMemcpyToSymbol(jPy, jumpPinned, jumpSize);
   if (!CheckCudaError(err, "SetParams: Failed to copy jPy to constant memory"))
   {
     return;
@@ -745,13 +965,21 @@ void GPUEngine::SetParams(uint64_t dpMask, Int *distance, Int *px, Int *py)
 bool GPUEngine::callKernelAndWait()
 {
 
-  // Debug function
-  callKernel();
-  cudaMemcpy(outputItemPinned, outputItem, outputSize, cudaMemcpyDeviceToHost);
-  cudaError_t err = cudaGetLastError();
-  return CheckCudaError(err, "callKernelAndWait", true);
+  // Debug function with proper error handling
+  if (!callKernel())
+  {
+    return false; // callKernel already logged the error
+  }
 
-  return true;
+  cudaError_t err = cudaMemcpy(outputItemPinned, outputItem, outputSize, cudaMemcpyDeviceToHost);
+  if (!CheckCudaError(err, "callKernelAndWait: cudaMemcpy", true))
+  {
+    return false;
+  }
+
+  // Final error check
+  err = cudaGetLastError();
+  return CheckCudaError(err, "callKernelAndWait: final check", true);
 }
 
 bool GPUEngine::Launch(std::vector<ITEM> &hashFound, bool spinWait)
@@ -759,27 +987,75 @@ bool GPUEngine::Launch(std::vector<ITEM> &hashFound, bool spinWait)
 
   hashFound.clear();
 
+  // Perform comprehensive CUDA error checking before launch
+  if (!CheckCudaStreamStatus())
+  {
+    printf("Launch: CUDA stream error detected before operation\n");
+    return false;
+  }
+
+  if (!CheckGPUMemoryStatus())
+  {
+    printf("Launch: GPU memory error detected before operation\n");
+    return false;
+  }
+
   // Get the result
 
   if (spinWait)
   {
-
-    cudaMemcpy(outputItemPinned, outputItem, outputSize, cudaMemcpyDeviceToHost);
+    // Synchronous memory copy with error checking
+    cudaError_t err = cudaMemcpy(outputItemPinned, outputItem, outputSize, cudaMemcpyDeviceToHost);
+    if (!CheckCudaError(err, "Launch: synchronous cudaMemcpy"))
+    {
+      return false;
+    }
   }
   else
   {
-
-    // Use cudaMemcpyAsync to avoid default spin wait of cudaMemcpy wich takes 100% CPU
+    // Use cudaMemcpyAsync to avoid default spin wait of cudaMemcpy which takes 100% CPU
     cudaEvent_t evt;
-    cudaEventCreate(&evt);
-    cudaMemcpyAsync(outputItemPinned, outputItem, 4, cudaMemcpyDeviceToHost, 0);
-    cudaEventRecord(evt, 0);
-    while (cudaEventQuery(evt) == cudaErrorNotReady)
+    cudaError_t err = cudaEventCreate(&evt);
+    if (!CheckCudaError(err, "Launch: cudaEventCreate"))
+    {
+      return false;
+    }
+
+    err = cudaMemcpyAsync(outputItemPinned, outputItem, 4, cudaMemcpyDeviceToHost, 0);
+    if (!CheckCudaError(err, "Launch: cudaMemcpyAsync"))
+    {
+      cudaEventDestroy(evt); // Cleanup on error
+      return false;
+    }
+
+    err = cudaEventRecord(evt, 0);
+    if (!CheckCudaError(err, "Launch: cudaEventRecord"))
+    {
+      cudaEventDestroy(evt); // Cleanup on error
+      return false;
+    }
+
+    // Wait for async operation to complete with error checking
+    cudaError_t queryResult;
+    while ((queryResult = cudaEventQuery(evt)) == cudaErrorNotReady)
     {
       // Sleep 1 ms to free the CPU
       Timer::SleepMillis(1);
     }
-    cudaEventDestroy(evt);
+
+    // Check if the event query failed for reasons other than "not ready"
+    if (queryResult != cudaSuccess)
+    {
+      CheckCudaError(queryResult, "Launch: cudaEventQuery");
+      cudaEventDestroy(evt); // Cleanup on error
+      return false;
+    }
+
+    err = cudaEventDestroy(evt);
+    if (!CheckCudaError(err, "Launch: cudaEventDestroy"))
+    {
+      return false;
+    }
   }
 
   cudaError_t err = cudaGetLastError();

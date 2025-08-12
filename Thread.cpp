@@ -67,7 +67,7 @@ bool Kangaroo::isAlive(TH_PARAM *p) {
   bool isAlive = false;
   int total = nbCPUThread + nbGPUThread;
   for(int i=0;i<total;i++)
-    isAlive = isAlive || p[i].isRunning;
+    isAlive = isAlive || p[i].isRunning.load(std::memory_order_acquire);
 
   return isAlive;
 
@@ -80,7 +80,7 @@ bool Kangaroo::hasStarted(TH_PARAM *p) {
   bool hasStarted = true;
   int total = nbCPUThread + nbGPUThread;
   for (int i = 0; i < total; i++)
-    hasStarted = hasStarted && p[i].hasStarted;
+    hasStarted = hasStarted && p[i].hasStarted.load(std::memory_order_acquire);
 
   return hasStarted;
 
@@ -93,7 +93,7 @@ bool Kangaroo::isWaiting(TH_PARAM *p) {
   bool isWaiting = true;
   int total = nbCPUThread + nbGPUThread;
   for (int i = 0; i < total; i++)
-    isWaiting = isWaiting && p[i].isWaiting;
+    isWaiting = isWaiting && p[i].isWaiting.load(std::memory_order_acquire);
 
   return isWaiting;
 
@@ -105,7 +105,7 @@ uint64_t Kangaroo::getGPUCount() {
 
   uint64_t count = 0;
   for(int i = 0; i<nbGPUThread; i++)
-    count += counters[0x80L + i];
+    count += counters[0x80L + i].load(std::memory_order_acquire);
   return count;
 
 }
@@ -116,7 +116,7 @@ uint64_t Kangaroo::getCPUCount() {
 
   uint64_t count = 0;
   for(int i=0;i<nbCPUThread;i++)
-    count += counters[i];
+    count += counters[i].load(std::memory_order_acquire);
   return count;
 
 }
@@ -133,11 +133,11 @@ string Kangaroo::GetTimeStr(double dTime) {
     double nbYear = nbDay / 365.0;
     if (nbYear > 1) {
       if (nbYear < 5)
-        sprintf(tmp, "%.1fy", nbYear);
+        snprintf(tmp, sizeof(tmp), "%.1fy", nbYear);
       else
-        sprintf(tmp, "%gy", nbYear);
+        snprintf(tmp, sizeof(tmp), "%gy", nbYear);
     } else {
-      sprintf(tmp, "%.1fd", nbDay);
+      snprintf(tmp, sizeof(tmp), "%.1fd", nbDay);
     }
 
   } else {
@@ -149,12 +149,12 @@ string Kangaroo::GetTimeStr(double dTime) {
 
     if (nbHour == 0) {
       if (nbMin == 0) {
-        sprintf(tmp, "%02ds", nbSec);
+        snprintf(tmp, sizeof(tmp), "%02ds", nbSec);
       } else {
-        sprintf(tmp, "%02d:%02d", nbMin, nbSec);
+        snprintf(tmp, sizeof(tmp), "%02d:%02d", nbMin, nbSec);
       }
     } else {
-      sprintf(tmp, "%02d:%02d:%02d", nbHour, nbMin, nbSec);
+      snprintf(tmp, sizeof(tmp), "%02d:%02d:%02d", nbHour, nbMin, nbSec);
     }
 
   }
@@ -180,7 +180,7 @@ void Kangaroo::ProcessServer() {
   ghMutex = CreateMutex(NULL,FALSE,NULL);
 #endif
 
-  while(!endOfSearch) {
+  while(!endOfSearch.load(std::memory_order_acquire)) {
 
     t0 = Timer::get_tick();
 
@@ -193,13 +193,13 @@ void Kangaroo::ProcessServer() {
     UNLOCK(ghMutex);
 
     // Add to hashTable
-    for(int i = 0; i<(int)localCache.size() && !endOfSearch; i++) {
+    for(int i = 0; i<(int)localCache.size() && !endOfSearch.load(std::memory_order_acquire); i++) {
       DP_CACHE dp = localCache[i];
-      for(int j = 0; j<(int)dp.nbDP && !endOfSearch; j++) {
+      for(int j = 0; j<(int)dp.nbDP && !endOfSearch.load(std::memory_order_acquire); j++) {
         uint64_t h = dp.dp[j].h;
         if(!AddToTable(h,&dp.dp[j].x,&dp.dp[j].d)) {
           // Collision inside the same herd
-          collisionInSameHerd++;
+          collisionInSameHerd.fetch_add(1, std::memory_order_relaxed);
         }
       }
       free(dp.dp);
@@ -213,18 +213,18 @@ void Kangaroo::ProcessServer() {
 
     t1 = Timer::get_tick();
 
-    if(!endOfSearch)
+    if(!endOfSearch.load(std::memory_order_acquire))
       printf("\r[Client %d][Kang 2^%.2f][DP Count 2^%.2f/2^%.2f][Dead %.0f][%s][%s]  ",
         connectedClient,
-        log2((double)totalRW),
+        log2((double)totalRW.load(std::memory_order_acquire)),
         log2((double)hashTable.GetNbItem()),
         log2(expectedNbOp / pow(2.0,dpSize)),
-        (double)collisionInSameHerd,
+        (double)collisionInSameHerd.load(std::memory_order_acquire),
         GetTimeStr(t1 - startTime).c_str(),
         hashTable.GetSizeInfo().c_str()
         );
 
-    if(workFile.length() > 0 && !endOfSearch) {
+    if(workFile.length() > 0 && !endOfSearch.load(std::memory_order_acquire)) {
       if((t1 - lastSave) > saveWorkPeriod) {
         SaveServerWork();
         lastSave = t1;
@@ -303,7 +303,7 @@ void Kangaroo::Process(TH_PARAM *params,std::string unit) {
     double expectedTime = expectedNbOp / avgKeyRate;
 
     // Display stats
-    if(isAlive(params) && !endOfSearch) {
+    if(isAlive(params) && !endOfSearch.load(std::memory_order_acquire)) {
       if(clientMode) {
         printf("\r[%.2f %s][GPU %.2f %s][Count 2^%.2f][%s][Server %6s]  ",
           avgKeyRate / 1000000.0,unit.c_str(),
@@ -317,7 +317,7 @@ void Kangaroo::Process(TH_PARAM *params,std::string unit) {
           avgKeyRate / 1000000.0,unit.c_str(),
           avgGpuKeyRate / 1000000.0,unit.c_str(),
           log2((double)count + offsetCount),
-          (double)collisionInSameHerd,
+          (double)collisionInSameHerd.load(std::memory_order_acquire),
           GetTimeStr(t1 - startTime + offsetTime).c_str(),GetTimeStr(expectedTime).c_str(),
           hashTable.GetSizeInfo().c_str()
         );
@@ -326,7 +326,7 @@ void Kangaroo::Process(TH_PARAM *params,std::string unit) {
     }
 
     // Save request
-    if(workFile.length() > 0 && !endOfSearch) {
+    if(workFile.length() > 0 && !endOfSearch.load(std::memory_order_acquire)) {
       if((t1 - lastSave) > saveWorkPeriod) {
         SaveWork(count + offsetCount,t1 - startTime + offsetTime,params,nbCPUThread + nbGPUThread);
         lastSave = t1;
@@ -339,7 +339,7 @@ void Kangaroo::Process(TH_PARAM *params,std::string unit) {
       if( (double)count > max ) {
         ::printf("\nKey#%2d [XX]Pub:  0x%s \n",keyIdx,secp->GetPublicKeyHex(true,keysToSearch[keyIdx]).c_str());
         ::printf("       Aborted !\n");
-        endOfSearch = true;
+        endOfSearch.store(true, std::memory_order_release);
         Timer::SleepMillis(1000);
       }
     }
@@ -353,7 +353,7 @@ void Kangaroo::Process(TH_PARAM *params,std::string unit) {
   count = getCPUCount() + getGPUCount();
   t1 = Timer::get_tick();
   
-  if( !endOfSearch ) {
+  if( !endOfSearch.load(std::memory_order_acquire) ) {
     printf("\r[%.2f %s][GPU %.2f %s][Cnt 2^%.2f][%s]  ",
       avgKeyRate / 1000000.0,unit.c_str(),
       avgGpuKeyRate / 1000000.0,unit.c_str(),

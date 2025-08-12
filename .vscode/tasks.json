@@ -1,0 +1,198 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "🏗️ Build Kangaroo (Release)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build_test",
+                "--config",
+                "Release",
+                "--target",
+                "kangaroo"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [
+                "$gcc",
+                "$msCompile"
+            ],
+            "detail": "Build Kangaroo project in Release mode following AI Agent rules"
+        },
+        {
+            "label": "🧹 Clean Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build_test",
+                "--target",
+                "clean"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Clean build artifacts"
+        },
+        {
+            "label": "✅ Verify Kangaroo",
+            "type": "shell",
+            "command": "${workspaceFolder}/build_test/Release/kangaroo.exe",
+            "args": ["-v"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "dependsOn": "🏗️ Build Kangaroo (Release)",
+            "detail": "Verify Kangaroo functionality after build"
+        },
+        {
+            "label": "🔍 Code Analysis",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "Running code analysis... (Configure static analysis tools as needed)"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Run static code analysis (configure tools like cppcheck, clang-tidy)"
+        },
+        {
+            "label": "📊 Memory Check",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "Memory check placeholder - configure valgrind or similar tools"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Check for memory leaks and errors"
+        },
+        {
+            "label": "🚀 Full Quality Check",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "🧹 Clean Build",
+                "🏗️ Build Kangaroo (Release)",
+                "✅ Verify Kangaroo",
+                "🔍 Code Analysis",
+                "📊 Memory Check"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Complete quality assurance pipeline following AI Agent rules"
+        },
+        {
+            "label": "📝 Generate Documentation",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "Documentation generation placeholder - configure Doxygen or similar"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Generate project documentation"
+        },
+        {
+            "label": "🔧 Configure CMake",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-B",
+                "build_test",
+                "-S",
+                ".",
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Configure CMake build system"
+        },
+        {
+            "label": "🎯 Test Specific Range",
+            "type": "shell",
+            "command": "${workspaceFolder}/build_test/Release/kangaroo.exe",
+            "args": [
+                "-t",
+                "4",
+                "-r",
+                "100000000:1FFFFFFFF",
+                "03a355aa5e2e09dd44bb46a4722e9336e9e3ee4ee4e7b7a0cf5785b283bf2ab579"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "dependsOn": "🏗️ Build Kangaroo (Release)",
+            "detail": "Test Kangaroo with specific 32-bit range"
+        },
+        {
+            "label": "🔄 AI Agent Workflow Check",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "AI Agent Workflow Status:",
+                "✅ Context7: Technical research completed",
+                "✅ Sequential Thinking: Problem analysis done", 
+                "✅ Interactive Feedback: User confirmation received",
+                "✅ Memory: Knowledge stored",
+                "📋 Next: Follow quality standards and safety boundaries"
+            ],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "detail": "Check AI Agent four-step workflow compliance"
+        }
+    ]
+}

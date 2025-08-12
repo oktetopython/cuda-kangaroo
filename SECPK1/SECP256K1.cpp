@@ -214,7 +214,7 @@ std::string Secp256K1::GetPublicKeyHex(bool compressed, Point &pubKey) {
     pubKey.y.Get32Bytes(publicKeyBytes + 33);
 
     for (int i = 0; i < 65; i++) {
-      sprintf(tmp, "%02X", (int)publicKeyBytes[i]);
+      snprintf(tmp, sizeof(tmp), "%02X", (int)publicKeyBytes[i]);
       ret.append(tmp);
     }
 
@@ -225,7 +225,7 @@ std::string Secp256K1::GetPublicKeyHex(bool compressed, Point &pubKey) {
     pubKey.x.Get32Bytes(publicKeyBytes + 1);
 
     for (int i = 0; i < 33; i++) {
-      sprintf(tmp, "%02X", (int)publicKeyBytes[i]);
+      snprintf(tmp, sizeof(tmp), "%02X", (int)publicKeyBytes[i]);
       ret.append(tmp);
     }
 
