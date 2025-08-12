@@ -162,6 +162,9 @@ public:
 
 private:
 
+  // Helper function for consistent error reporting
+  bool reportError(const std::string& context, const std::string& message);
+
   bool IsDP(uint64_t x);
   void SetDP(int size);
   void CreateHerd(int nbKangaroo,Int *px, Int *py, Int *d, int firstType,bool lock=true);

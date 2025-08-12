@@ -25,6 +25,7 @@
 #include <stdexcept>
 #include <signal.h>
 #include <memory>
+#include <functional>
 
 using namespace std;
 
@@ -44,6 +45,13 @@ void emergency_cleanup_handler(int signal) {
 void printInvalidArgument(const string& name) {
   printf("Invalid %s argument, number expected\n", name.c_str());
   exit(-1);
+}
+
+// Constants for default values
+namespace Config {
+  const int DEFAULT_SERVER_PORT = 17403;
+  const int DEFAULT_TIMEOUT_MS = 3000;
+  const int DEFAULT_SAVE_PERIOD = 60;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -149,6 +157,32 @@ void getInts(string name,vector<int> &tokens,const string &text,char sep) {
   }
 
 }
+
+// Argument parsing helper structure
+struct ArgHandler {
+  const char* flag;
+  int argCount;
+  std::function<void(char**)> handler;
+};
+
+// Helper function for string argument assignment
+void assignStringArg(string& target, char** argv, int& a) {
+  target = string(argv[a]);
+  a++;
+}
+
+// Helper function for integer argument assignment
+void assignIntArg(int& target, const string& name, char** argv, int& a) {
+  target = getInt(name, argv[a]);
+  a++;
+}
+
+// Helper function for uint32_t argument assignment
+void assignUInt32Arg(uint32_t& target, const string& name, char** argv, int& a) {
+  target = static_cast<uint32_t>(getInt(name, argv[a]));
+  a++;
+}
+
 // ------------------------------------------------------------------------------------------
 
 // Default params
@@ -162,7 +196,7 @@ static vector<int> gridSize;
 static string workFile = "";
 static string checkWorkFile = "";
 static string iWorkFile = "";
-static uint32_t savePeriod = 60;
+static uint32_t savePeriod = Config::DEFAULT_SAVE_PERIOD;
 static bool saveKangaroo = false;
 static bool saveKangarooByServer = false;
 static string merge1 = "";
@@ -171,9 +205,9 @@ static string mergeDest = "";
 static string mergeDir = "";
 static string infoFile = "";
 static double maxStep = 0.0;
-static int wtimeout = 3000;
-static int ntimeout = 3000;
-static int port = 17403;
+static int wtimeout = Config::DEFAULT_TIMEOUT_MS;
+static int ntimeout = Config::DEFAULT_TIMEOUT_MS;
+static int port = Config::DEFAULT_SERVER_PORT;
 static bool serverMode = false;
 static string serverIP = "";
 static string outputFile = "";
@@ -208,105 +242,71 @@ int main(int argc, char* argv[]) {
   int a = 1;
   nbCPUThread = Timer::getCoreNumber();
 
-  while (a < argc) {
+  // Simplified argument parsing to reduce repetitive code
 
+  while (a < argc) {
+    // Improved argument parsing with reduced repetition
     if(strcmp(argv[a], "-t") == 0) {
       CHECKARG("-t",1);
-      nbCPUThread = getInt("nbCPUThread",argv[a]);
-      a++;
+      assignIntArg(nbCPUThread, "nbCPUThread", argv, a);
     } else if(strcmp(argv[a],"-d") == 0) {
       CHECKARG("-d",1);
-      dp = getInt("dpSize",argv[a]);
-      a++;
+      assignIntArg(dp, "dpSize", argv, a);
     } else if (strcmp(argv[a], "-h") == 0) {
       printUsage();
     } else if(strcmp(argv[a],"-l") == 0) {
-
 #ifdef WITHGPU
       GPUEngine::PrintCudaInfo();
 #else
       printf("GPU code not compiled, use -DWITHGPU when compiling.\n");
 #endif
       exit(0);
-
     } else if(strcmp(argv[a],"-w") == 0) {
       CHECKARG("-w",1);
-      workFile = string(argv[a]);
-      a++;
+      assignStringArg(workFile, argv, a);
     } else if(strcmp(argv[a],"-i") == 0) {
       CHECKARG("-i",1);
-      iWorkFile = string(argv[a]);
-      a++;
-    } else if(strcmp(argv[a],"-wm") == 0) {
-      CHECKARG("-wm",1);
-      merge1 = string(argv[a]);
-      CHECKARG("-wm",2);
-      merge2 = string(argv[a]);
-      a++;
-      if(a<argc) {
-        // classic merge
-        mergeDest = string(argv[a]);
-        a++;
-      }
-    } else if(strcmp(argv[a],"-wmdir") == 0) {
-      CHECKARG("-wmdir",1);
-      mergeDir = string(argv[a]);
-      CHECKARG("-wmdir",2);
-      mergeDest = string(argv[a]);
-      a++;
-    }  else if(strcmp(argv[a],"-wcheck") == 0) {
+      assignStringArg(iWorkFile, argv, a);
+    } else if(strcmp(argv[a],"-wcheck") == 0) {
       CHECKARG("-wcheck",1);
-      checkWorkFile = string(argv[a]);
-      a++;
-    }  else if(strcmp(argv[a],"-winfo") == 0) {
+      assignStringArg(checkWorkFile, argv, a);
+    } else if(strcmp(argv[a],"-winfo") == 0) {
       CHECKARG("-winfo",1);
-      infoFile = string(argv[a]);
-      a++;
+      assignStringArg(infoFile, argv, a);
     } else if(strcmp(argv[a],"-o") == 0) {
       CHECKARG("-o",1);
-      outputFile = string(argv[a]);
-      a++;
+      assignStringArg(outputFile, argv, a);
     } else if(strcmp(argv[a],"-wi") == 0) {
       CHECKARG("-wi",1);
-      savePeriod = getInt("savePeriod",argv[a]);
-      a++;
+      assignUInt32Arg(savePeriod, "savePeriod", argv, a);
     } else if(strcmp(argv[a],"-wt") == 0) {
       CHECKARG("-wt",1);
-      wtimeout = getInt("timeout",argv[a]);
-      a++;
+      assignIntArg(wtimeout, "timeout", argv, a);
     } else if(strcmp(argv[a],"-nt") == 0) {
       CHECKARG("-nt",1);
-      ntimeout = getInt("timeout",argv[a]);
-      a++;
+      assignIntArg(ntimeout, "timeout", argv, a);
     } else if(strcmp(argv[a],"-m") == 0) {
       CHECKARG("-m",1);
       maxStep = getDouble("maxStep",argv[a]);
       a++;
     } else if(strcmp(argv[a],"-ws") == 0) {
-      a++;
       saveKangaroo = true;
+      a++;
     } else if(strcmp(argv[a],"-wss") == 0) {
-      a++;
       saveKangarooByServer = true;
+      a++;
     } else if(strcmp(argv[a],"-wsplit") == 0) {
-      a++;
       splitWorkFile = true;
-    } else if(strcmp(argv[a],"-wpartcreate") == 0) {
-      CHECKARG("-wpartcreate",1);
-      workFile = string(argv[a]);
-      Kangaroo::CreateEmptyPartWork(workFile);
-      exit(0);
-    } else if(strcmp(argv[a],"-s") == 0) {
       a++;
+    } else if(strcmp(argv[a],"-s") == 0) {
       serverMode = true;
+      a++;
     } else if(strcmp(argv[a],"-c") == 0) {
       CHECKARG("-c",1);
-      serverIP = string(argv[a]);
-      a++;
+      assignStringArg(serverIP, argv, a);
     } else if(strcmp(argv[a],"-sp") == 0) {
       CHECKARG("-sp",1);
-      port = getInt("serverPort",argv[a]);
-      a++;
+      assignIntArg(port, "serverPort", argv, a);
     } else if(strcmp(argv[a],"-gpu") == 0) {
       gpuEnable = true;
       a++;
@@ -319,10 +319,31 @@ int main(int argc, char* argv[]) {
       getInts("gridSize",gridSize,string(argv[a]),',');
       a++;
     } else if(strcmp(argv[a],"-v") == 0) {
-      ::exit(0);
+      exit(0);
     } else if(strcmp(argv[a],"-check") == 0) {
       checkFlag = true;
       a++;
+    } else if(strcmp(argv[a],"-wm") == 0) {
+      CHECKARG("-wm",1);
+      merge1 = string(argv[a]);
+      CHECKARG("-wm",2);
+      merge2 = string(argv[a]);
+      a++;
+      if(a<argc) {
+        mergeDest = string(argv[a]);
+        a++;
+      }
+    } else if(strcmp(argv[a],"-wmdir") == 0) {
+      CHECKARG("-wmdir",1);
+      mergeDir = string(argv[a]);
+      CHECKARG("-wmdir",2);
+      mergeDest = string(argv[a]);
+      a++;
+    } else if(strcmp(argv[a],"-wpartcreate") == 0) {
+      CHECKARG("-wpartcreate",1);
+      workFile = string(argv[a]);
+      Kangaroo::CreateEmptyPartWork(workFile);
+      exit(0);
     } else if(a == argc - 1) {
       configFile = string(argv[a]);
       a++;
@@ -330,7 +351,6 @@ int main(int argc, char* argv[]) {
       printf("Unexpected %s argument\n",argv[a]);
       exit(-1);
     }
-
   }
 
   if(gridSize.size() == 0) {
