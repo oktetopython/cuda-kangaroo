@@ -3,97 +3,144 @@
 ## Essential Commands
 
 ### Start New Search
-```bash
-# Windows
-kangaroo.exe -t 8 -d 22 -w search.kcp -i 600 -o result.txt <public_key>
 
-# Linux  
-./kangaroo -t 8 -d 22 -w search.kcp -i 600 -o result.txt <public_key>
+```bash
+# Windows - using configuration file
+kangaroo.exe -t 8 -d 22 -w search.kcp -o result.txt config.txt
+
+# Linux - using configuration file
+./kangaroo -t 8 -d 22 -w search.kcp -o result.txt config.txt
 ```
 
 ### Resume from Checkpoint
+
 ```bash
-kangaroo.exe -r search.kcp -o result.txt
+kangaroo.exe -i search.kcp -t 8 -o result.txt
 ```
 
-### Check Checkpoint
+### Check GPU and Validate
+
 ```bash
-kangaroo.exe -check search.kcp
-kangaroo.exe -info search.kcp
+kangaroo.exe -check
+kangaroo.exe -l
 ```
 
 ## Core Parameters
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `-t <n>` | CPU threads (1-256) | `-t 8` |
-| `-d <n>` | Distinguished point bits (16-32) | `-d 22` |
-| `-w <file>` | Save checkpoint file | `-w work.kcp` |
-| `-r <file>` | Resume from checkpoint | `-r work.kcp` |
-| `-i <sec>` | Save interval (60-7200) | `-i 600` |
+| `-t <n>` | Number of CPU threads | `-t 8` |
+| `-d <n>` | Distinguished point bits (auto if not specified) | `-d 22` |
+| `-w <file>` | Save work to file (current key only) | `-w work.kcp` |
+| `-i <file>` | Load work from file (current key only) | `-i work.kcp` |
 | `-o <file>` | Output result file | `-o result.txt` |
+| `-v` | Print version | `-v` |
 
 ## GPU Parameters
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `-gpu` | Enable GPU acceleration | `-gpu` |
-| `-gpuId <n>` | GPU device ID | `-gpuId 0` |
-| `-gpuId <n,m>` | Multiple GPUs | `-gpuId 0,1` |
+| `-gpu` | Enable GPU calculation | `-gpu` |
+| `-gpuId <list>` | List of GPU IDs to use (default: 0) | `-gpuId 0,1,2` |
+| `-g <grid>` | GPU kernel gridsize | `-g 272,256` |
+| `-l` | List CUDA enabled devices | `-l` |
+| `-check` | Check GPU kernel vs CPU | `-check` |
 
-## Search Parameters
+## Network Parameters
 
 | Parameter | Description | Example |
 |-----------|-------------|---------|
-| `-r <start:end>` | Search range (hex) | `-r 1000000000:1FFFFFFFF` |
-| `-puzzle <n>` | Bitcoin puzzle number | `-puzzle 120` |
-| `-maxMem <MB>` | Memory limit | `-maxMem 8192` |
-| `-fastMode` | Fast mode | `-fastMode` |
+| `-s` | Start in server mode | `-s` |
+| `-c <ip>` | Start in client mode, connect to server | `-c 192.168.1.100` |
+| `-sp <port>` | Server port (default: 17403) | `-sp 17403` |
+| `-nt <ms>` | Network timeout in millisec (default: 3000) | `-nt 5000` |
 
-## Checkpoint Management
+## Work File Management
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `-check <file>` | Validate integrity | `-check work.kcp` |
-| `-info <file>` | Show file info | `-info work.kcp` |
-| `-convert <in> <out>` | Convert format | `-convert old.kcp new.kcp` |
-| `-merge <out> <in1> <in2>` | Merge files | `-merge final.kcp work1.kcp work2.kcp` |
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `-ws` | Save kangaroo work | `-ws` |
+| `-wss` | Save kangaroo work by server | `-wss` |
+| `-wsplit` | Split work file | `-wsplit` |
+| `-wm <file1> <file2> <dest>` | Merge work files | `-wm work1.kcp work2.kcp merged.kcp` |
+| `-wi <file>` | Show work file info | `-wi work.kcp` |
+| `-winfo <file>` | Show work file info | `-winfo work.kcp` |
+| `-wcheck <file>` | Check work file | `-wcheck work.kcp` |
+
+## Configuration File Format
+
+The program requires a configuration file with the following format:
+
+```text
+<range_start_hex>
+<range_end_hex>
+<public_key_1_hex>
+<public_key_2_hex>
+...
+```
+
+### Example Configuration File (config.txt)
+
+```text
+100000000000000
+1ffffffffffffff
+02a521a07e98f78b03fc1e039bc3a51408cd73119b5eb116e583fe57dc8db07aea
+```
+
+### Example Configuration File (puzzle135.txt)
+
+```text
+4000000000000000000000000000000000
+7fffffffffffffffffffffffffffffffff
+02145d2611c823a396ef6712ce0f712f09b9b4f3135e3e0aa3230fb9b6d08d1e16
+```
 
 ## Common Usage Patterns
 
 ### Basic Search
+
 ```bash
-kangaroo.exe -t 4 -d 20 -w basic.kcp -i 300 <public_key>
+kangaroo.exe -t 4 -d 20 -w basic.kcp -o result.txt config.txt
 ```
 
 ### High Performance
+
 ```bash
-kangaroo.exe -t 16 -d 24 -w perf.kcp -i 1800 -maxMem 16384 <public_key>
+kangaroo.exe -t 16 -d 24 -w perf.kcp -o result.txt config.txt
 ```
 
 ### GPU Accelerated
-```bash
-kangaroo.exe -gpu -gpuId 0 -t 8 -d 24 -w gpu.kcp -i 900 <public_key>
-```
 
-### Range Search
 ```bash
-kangaroo.exe -t 8 -d 22 -w range.kcp -r 1000000000:1FFFFFFFF <public_key>
+kangaroo.exe -gpu -gpuId 0 -t 8 -d 24 -w gpu.kcp -o result.txt config.txt
 ```
 
 ### Resume Work
+
 ```bash
-kangaroo.exe -r existing.kcp -t 8 -o result.txt
+kangaroo.exe -i existing.kcp -t 8 -o result.txt
+```
+
+### Server Mode
+
+```bash
+# Start server
+kangaroo.exe -s -sp 17403 -t 8 -gpu config.txt
+
+# Connect client
+kangaroo.exe -c 192.168.1.100 -sp 17403 -t 4
 ```
 
 ## File Size Optimization
 
 ### Automatic Compression
+
 - All checkpoint files use automatic compression
 - 40-70% size reduction typical
 - No additional parameters needed
 
 ### Manual Conversion
+
 ```bash
 # Convert legacy to compressed
 kangaroo.exe -convert legacy.kcp compressed.kcp
@@ -105,16 +152,19 @@ kangaroo.exe -info compressed.kcp
 ## Troubleshooting
 
 ### Check File Integrity
+
 ```bash
 kangaroo.exe -check suspicious.kcp
 ```
 
 ### Validate Parameters
+
 ```bash
 kangaroo.exe -v -t 8 -d 22 -w test.kcp <public_key>
 ```
 
 ### Debug Mode
+
 ```bash
 kangaroo.exe -debug -t 4 -d 20 -w debug.kcp <public_key>
 ```
@@ -145,6 +195,7 @@ export KANGAROO_MEMORY_LIMIT=8192
 ## Batch Processing
 
 ### Windows Batch
+
 ```batch
 @echo off
 set THREADS=8
@@ -155,6 +206,7 @@ kangaroo.exe -t %THREADS% -d %DP_BITS% -w work_%DATE%.kcp -i 600 -o result.txt %
 ```
 
 ### Linux Shell
+
 ```bash
 #!/bin/bash
 THREADS=8
@@ -167,17 +219,20 @@ PUBLIC_KEY="02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9"
 ## Performance Tips
 
 ### Optimal Settings
+
 - **Threads**: Number of CPU cores
 - **DP bits**: 20-24 (higher = less memory, slower)
 - **Save interval**: 300-1800 seconds
 - **Memory**: 50-80% of available RAM
 
 ### GPU Optimization
+
 - Use `-gpuId 0` for single GPU
 - Use `-gpuId 0,1` for multiple GPUs
 - Monitor GPU utilization with system tools
 
 ### Checkpoint Strategy
+
 - Save every 5-30 minutes (`-i 300` to `-i 1800`)
 - Keep multiple backup checkpoints
 - Validate checkpoints regularly
@@ -185,15 +240,17 @@ PUBLIC_KEY="02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9"
 ## Example Public Keys
 
 ### Test Keys (Known Solutions)
+
 ```text
 # Puzzle 32 (solved)
 02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9
 
-# Puzzle 64 (solved)  
+# Puzzle 64 (solved)
 02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9
 ```
 
 ### Usage with Test Key
+
 ```bash
 kangaroo.exe -t 4 -d 20 -w test.kcp -puzzle 32 02F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9
 ```
