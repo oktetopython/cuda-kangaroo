@@ -1,26 +1,27 @@
 /*
-* This file is part of the BTCCollider distribution (https://github.com/JeanLucPons/Kangaroo).
-* Copyright (c) 2020 Jean Luc PONS.
-*
-* This program is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, version 3.
-*
-* This program is distributed in the hope that it will be useful, but
-* WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-* General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * This file is part of the BTCCollider distribution (https://github.com/JeanLucPons/Kangaroo).
+ * Copyright (c) 2020 Jean Luc PONS.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 // CUDA Kernel main function
 #include "GPUMath.h"
 
 // -----------------------------------------------------------------------------------------
 
-__device__ void ComputeKangaroos(uint64_t *kangaroos,uint32_t maxFound,uint32_t *out,uint64_t dpMask) {
+__device__ void ComputeKangaroos(uint64_t *kangaroos, uint32_t maxFound, uint32_t *out, uint64_t dpMask)
+{
 
   uint64_t px[GPU_GRP_SIZE][4];
   uint64_t py[GPU_GRP_SIZE][4];
@@ -38,92 +39,96 @@ __device__ void ComputeKangaroos(uint64_t *kangaroos,uint32_t maxFound,uint32_t 
   uint32_t jmp;
 
 #ifdef USE_SYMMETRY
-  LoadKangaroos(kangaroos,px,py,dist,lastJump);
+  LoadKangaroos(kangaroos, px, py, dist, lastJump);
 #else
-  LoadKangaroos(kangaroos,px,py,dist);
+  LoadKangaroos(kangaroos, px, py, dist);
 #endif
 
-  for(int run = 0; run < NB_RUN; run++) {
+  for (int run = 0; run < NB_RUN; run++)
+  {
 
     // P1 = jumpPoint
     // P2 = kangaroo
 
     __syncthreads();
 
-    for(int g = 0; g < GPU_GRP_SIZE; g++) {
-      jmp = (uint32_t)px[g][0] & (NB_JUMP-1);
+    for (int g = 0; g < GPU_GRP_SIZE; g++)
+    {
+      jmp = (uint32_t)px[g][0] & (NB_JUMP - 1);
 
 #ifdef USE_SYMMETRY
-      if(jmp==lastJump[g]) jmp = (lastJump[g] + 1) % NB_JUMP;
+      if (jmp == lastJump[g])
+        jmp = (lastJump[g] + 1) % NB_JUMP;
       lastJump[g] = jmp;
 #endif
 
-      ModSub256(dx[g],px[g],jPx[jmp]);
+      ModSub256(dx[g], px[g], jPx[jmp]);
     }
 
     _ModInvGrouped(dx);
 
     __syncthreads();
 
-    for(int g = 0; g < GPU_GRP_SIZE; g++) {
+    for (int g = 0; g < GPU_GRP_SIZE; g++)
+    {
 
 #ifdef USE_SYMMETRY
       jmp = lastJump[g];
 #else
-      jmp = (uint32_t)px[g][0] & (NB_JUMP-1);
+      jmp = (uint32_t)px[g][0] & (NB_JUMP - 1);
 #endif
 
-      ModSub256(dy,py[g],jPy[jmp]);
-      _ModMult(_s,dy,dx[g]);
-      _ModSqr(_p,_s);
+      ModSub256(dy, py[g], jPy[jmp]);
+      _ModMult(_s, dy, dx[g]);
+      _ModSqr(_p, _s);
 
-      ModSub256(rx,_p,jPx[jmp]);
-      ModSub256(rx,px[g]);
+      ModSub256(rx, _p, jPx[jmp]);
+      ModSub256(rx, px[g]);
 
-      ModSub256(ry,px[g],rx);
-      _ModMult(ry,_s);
-      ModSub256(ry,py[g]);
+      ModSub256(ry, px[g], rx);
+      _ModMult(ry, _s);
+      ModSub256(ry, py[g]);
 
-      Load256(px[g],rx);
-      Load256(py[g],ry);
+      Load256(px[g], rx);
+      Load256(py[g], ry);
 
-      Add128(dist[g],jD[jmp]);
+      Add128(dist[g], jD[jmp]);
 
 #ifdef USE_SYMMETRY
-      if(ModPositive256(py[g]))
+      if (ModPositive256(py[g]))
         ModNeg256Order(dist[g]);
 #endif
 
-      if(dpMask != 0 && (px[g][3] & dpMask) == 0) {
+      if (dpMask != 0 && (px[g][3] & dpMask) == 0)
+      {
 
         // Distinguished point - use atomic compare-and-swap for safe reservation
         uint32_t currentCount = atomicAdd(out, 0); // Read current count without incrementing
-        if(currentCount < maxFound) {
+        if (currentCount < maxFound)
+        {
           // Attempt to reserve a slot atomically
           uint32_t pos = atomicAdd(out, 1);
           // Double-check after atomic increment to handle race conditions
-          if(pos < maxFound) {
+          if (pos < maxFound)
+          {
             // Additional boundary check to prevent buffer overflow
             // Each DP uses 14 uint32_t elements (ITEM_SIZE32), plus 1 for the count
             uint32_t maxSafePos = (maxFound > 0) ? maxFound - 1 : 0;
-            if(pos <= maxSafePos && (pos * 14 + 14) <= (maxFound * 14)) {
-              uint64_t kIdx = (uint64_t)IDX + (uint64_t)g*(uint64_t)blockDim.x + (uint64_t)blockIdx.x*((uint64_t)blockDim.x*GPU_GRP_SIZE);
-              OutputDP(px[g],dist[g],&kIdx);
+            if (pos <= maxSafePos && (pos * 14 + 14) <= (maxFound * 14))
+            {
+              uint64_t kIdx = (uint64_t)IDX + (uint64_t)g * (uint64_t)blockDim.x + (uint64_t)blockIdx.x * ((uint64_t)blockDim.x * GPU_GRP_SIZE);
+              OutputDP(px[g], dist[g], &kIdx);
             }
           }
           // If pos >= maxFound after increment, the slot was wasted but no corruption occurs
         }
-
       }
-
     }
-
   }
 
 #ifdef USE_SYMMETRY
-  StoreKangaroos(kangaroos,px,py,dist,lastJump);
+  StoreKangaroos(kangaroos, px, py, dist, lastJump);
 #else
-  StoreKangaroos(kangaroos,px,py,dist);
+  StoreKangaroos(kangaroos, px, py, dist);
 #endif
-
 }
