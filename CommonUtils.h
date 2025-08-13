@@ -20,8 +20,18 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include "SECPK1/Int.h"
+
+// Structure for distinguished points
+typedef struct
+{
+  Int x;
+  Int d;
+  uint64_t kIdx;
+} ITEM;
 
 // Common error handling functions
 namespace CommonUtils {

@@ -33,13 +33,6 @@
 #define ITEM_SIZE 56
 #define ITEM_SIZE32 (ITEM_SIZE / 4)
 
-typedef struct
-{
-  Int x;
-  Int d;
-  uint64_t kIdx;
-} ITEM;
-
 // RAII GPU Memory Management Class
 class CudaMemoryGuard
 {
