@@ -1,0 +1,15 @@
+BaseField M, MM, X3, XD, Y3, YD, t1, t2, t3;
+YD = (o.y + BaseField::pp() - y).reduce_to_pp();
+XD = (o.x + BaseField::pp() - x).reduce_to_pp();
+M = XD.inverse();
+M = YD * M;
+MM = M.square();
+t1 = (MM + BaseField::pp() - x).reduce_to_pp();
+X3 = (t1 + BaseField::pp() - o.x).reduce_to_pp();
+t2 = (x + BaseField::pp() - X3).reduce_to_pp();
+t3 = M * t2;
+Y3 = (t3 + BaseField::pp() - y).reduce_to_pp();
+Affine result;
+result.x = X3.reduce_to_p();
+result.y = Y3.reduce_to_p();
+return result;

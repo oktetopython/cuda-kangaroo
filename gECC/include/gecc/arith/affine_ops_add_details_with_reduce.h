@@ -1,0 +1,15 @@
+BaseField M, MM, X3, XD, Y3, YD, t1, t2, t3;
+YD = o.y - y;
+XD = o.x - x;
+M = XD.inverse();
+M = YD * M;
+MM = M.square();
+t1 = MM - x;
+X3 = t1 - o.x;
+t2 = x - X3;
+t3 = M * t2;
+Y3 = t3 - y;
+Affine result;
+result.x = X3;
+result.y = Y3;
+return result;

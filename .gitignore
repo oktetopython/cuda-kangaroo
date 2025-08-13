@@ -1,6 +1,8 @@
 # Build artifacts
 build/
 build_test/
+gECC/build/
+gECC/build_test/
 results/
 x64/
 obj/
