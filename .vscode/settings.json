@@ -1,6 +1,6 @@
 {
     "// AI Agent Rules v2.0 - VSCode Settings": "CUDA-BSGS-Kangaroo Project Configuration",
-    
+
     "// === C++ Configuration ===": "",
     "C_Cpp.default.cppStandard": "c++17",
     "C_Cpp.default.compilerPath": "",
@@ -16,7 +16,7 @@
     ],
     "C_Cpp.errorSquiggles": "enabled",
     "C_Cpp.intelliSenseEngine": "default",
-    
+
     "// === Code Quality Settings ===": "",
     "editor.formatOnSave": true,
     "editor.formatOnType": true,
@@ -27,7 +27,7 @@
     "files.trimTrailingWhitespace": true,
     "files.insertFinalNewline": true,
     "files.trimFinalNewlines": true,
-    
+
     "// === Modern C++ Enforcement ===": "",
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "C_Cpp.codeAnalysis.clangTidy.checks.enabled": [
@@ -40,7 +40,7 @@
     "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
         "modernize-use-trailing-return-type"
     ],
-    
+
     "// === File Associations ===": "",
     "files.associations": {
         "*.h": "cpp",
@@ -50,7 +50,7 @@
         "*.cuh": "cuda-cpp",
         "*.md": "markdown"
     },
-    
+
     "// === Search and Replace Settings ===": "",
     "search.exclude": {
         "**/build*/**": true,
@@ -59,13 +59,13 @@
         "**/.git/**": true,
         "**/node_modules/**": true
     },
-    
+
     "// === Git Integration ===": "",
     "git.enableSmartCommit": true,
     "git.confirmSync": false,
     "git.autofetch": true,
     "git.showPushSuccessNotification": true,
-    
+
     "// === AI Agent Workflow Reminders ===": "",
     "workbench.colorCustomizations": {
         "statusBar.background": "#1e7e34",
@@ -73,28 +73,28 @@
         "statusBarItem.hoverBackground": "#28a745"
     },
     "workbench.statusBar.visible": true,
-    
+
     "// === Problem Matchers ===": "",
     "problems.decorations.enabled": true,
     "problems.showCurrentInStatus": true,
-    
+
     "// === Terminal Configuration ===": "",
     "terminal.integrated.defaultProfile.windows": "PowerShell",
     "terminal.integrated.cwd": "${workspaceFolder}",
-    
+
     "// === Extension Recommendations ===": "",
     "extensions.showRecommendationsOnlyOnDemand": false,
-    
+
     "// === Markdown Settings ===": "",
     "markdown.preview.breaks": true,
     "markdown.preview.linkify": true,
     "markdown.preview.typographer": true,
-    
+
     "// === Security and Safety ===": "",
     "security.workspace.trust.untrustedFiles": "prompt",
     "files.autoSave": "afterDelay",
     "files.autoSaveDelay": 1000,
-    
+
     "// === Performance Settings ===": "",
     "search.smartCase": true,
     "search.useGlobalIgnoreFiles": true,
@@ -103,7 +103,7 @@
         "**/Release/**": true,
         "**/Debug/**": true
     },
-    
+
     "// === Code Snippets and IntelliSense ===": "",
     "editor.suggest.insertMode": "replace",
     "editor.acceptSuggestionOnCommitCharacter": true,
@@ -113,42 +113,42 @@
         "comments": false,
         "strings": false
     },
-    
+
     "// === AI Agent Rules Compliance ===": "",
     "editor.rulers": [80, 120],
     "editor.wordWrap": "bounded",
     "editor.wordWrapColumn": 120,
     "editor.showUnused": true,
     "editor.showDeprecated": true,
-    
+
     "// === Custom Tasks Integration ===": "",
     "task.autoDetect": "on",
     "task.showDecorations": true,
-    
+
     "// === Debugging Configuration ===": "",
     "debug.allowBreakpointsEverywhere": true,
     "debug.showInStatusBar": "always",
-    
+
     "// === Workspace Specific ===": "",
     "cmake.buildDirectory": "${workspaceFolder}/build_test",
     "cmake.configureOnOpen": false,
     "cmake.generator": "Visual Studio 16 2019",
     "cmake.platform": "x64",
-    
+
     "// === AI Agent Framework Notifications ===": "",
     "workbench.tips.enabled": true,
     "workbench.welcomePage.walkthroughs.openOnInstall": false,
-    
+
     "// === Code Actions ===": "",
     "editor.codeActionsOnSave": {
-        "source.fixAll": true,
-        "source.organizeImports": false
+      "source.fixAll": "explicit",
+      "source.organizeImports": "never"
     },
-    
+
     "// === Memory Management Reminders ===": "",
     "editor.semanticHighlighting.enabled": true,
     "C_Cpp.enhancedColorization": "enabled",
-    
+
     "// === Project Documentation ===": "",
     "markdown.extension.toc.levels": "2..6",
     "markdown.extension.preview.autoShowPreviewToSide": false
