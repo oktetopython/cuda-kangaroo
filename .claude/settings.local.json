@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(mkdir:*)",
-      "Bash(gh pr view:*)"
-    ],
-    "deny": []
-  }
-}

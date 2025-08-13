@@ -33,3 +33,33 @@ report.xml
 archive/
 archive_perfect_baseline_20250109/
 backup_/
+
+# Tool directories - Should not be pushed to repository
+.bmad-core/
+.claude/
+.crush/
+.cursor/
+.gemini/
+.kiro/
+.trae/
+.vscode/
+.ai/
+.windsurf/
+.roo/
+.cline/
+
+# AI Agent configuration files
+ai-agent-rules*.md
+mcp-config.json
+settings.local.json
+
+# Documentation that should be local only
+dissertation/
+rules/
+specs/
+agents/
+tasks/
+templates/
+workflows/
+checklists/
+data/
