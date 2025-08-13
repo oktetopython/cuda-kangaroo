@@ -17,9 +17,15 @@
 
 #include "SECP256k1.h"
 #include "IntGroup.h"
+#include "GeccAdapter.h"
 #include <string.h>
 
+// Define USE_GECC to enable the gECC backend.
+// This can be passed as a compiler flag, e.g., -DUSE_GECC
+#define USE_GECC
+
 Secp256K1::Secp256K1() {
+    GeccAdapter::Initialize();
 }
 
 void Secp256K1::Init() {
@@ -57,7 +63,11 @@ Secp256K1::~Secp256K1() {
 }
 
 Point Secp256K1::ComputePublicKey(Int *privKey,bool reduce) {
-
+#ifdef USE_GECC
+    Point result = GeccAdapter::ScalarMult(*privKey, G);
+    if(reduce) result.Reduce();
+    return result;
+#else
   int i = 0;
   uint8_t b;
   Point Q;
@@ -83,11 +93,18 @@ Point Secp256K1::ComputePublicKey(Int *privKey,bool reduce) {
 
   if(reduce) Q.Reduce();
   return Q;
-
+#endif
 }
 
 std::vector<Point> Secp256K1::ComputePublicKeys(std::vector<Int> &privKeys) {
-
+#ifdef USE_GECC
+    std::vector<Point> pts;
+    pts.reserve(privKeys.size());
+    for(int i=0; i < privKeys.size(); i++) {
+        pts.push_back(GeccAdapter::ScalarMult(privKeys[i], G));
+    }
+    return pts;
+#else
   std::vector<Point> pts;
   IntGroup grp((int)privKeys.size());
   Int *inv = new Int[privKeys.size()];
@@ -110,7 +127,7 @@ std::vector<Point> Secp256K1::ComputePublicKeys(std::vector<Int> &privKeys) {
 
   delete[] inv;
   return pts;
-
+#endif
 }
 
 Point Secp256K1::NextKey(Point &key) {
@@ -236,7 +253,9 @@ std::string Secp256K1::GetPublicKeyHex(bool compressed, Point &pubKey) {
 }
 
 Point Secp256K1::AddDirect(Point &p1,Point &p2) {
-
+#ifdef USE_GECC
+    return GeccAdapter::Add(p1, p2);
+#else
   Int _s;
   Int _p;
   Int dy;
@@ -259,7 +278,7 @@ Point Secp256K1::AddDirect(Point &p1,Point &p2) {
   r.y.ModSub(&p2.y);       // ry = - p2.y - s*(ret.x-p2.x);  
 
   return r;
-
+#endif
 }
 
 std::vector<Point> Secp256K1::AddDirect(std::vector<Point> &p1,std::vector<Point> &p2) {
@@ -436,7 +455,9 @@ Point Secp256K1::Add(Point &p1,Point &p2) {
 }
 
 Point Secp256K1::DoubleDirect(Point &p) {
-
+#ifdef USE_GECC
+    return GeccAdapter::Double(p);
+#else
   Int _s;
   Int _p;
   Int a;
@@ -463,6 +484,7 @@ Point Secp256K1::DoubleDirect(Point &p) {
   r.y.ModNeg();           // ry = neg(p.y + s*(ret.x+neg(p.x)));  
 
   return r;
+#endif
 }
 
 Point Secp256K1::Double(Point &p) {

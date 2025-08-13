@@ -18,7 +18,9 @@
 #include "Kangaroo.h"
 #include "Timer.h"
 #include "SECPK1/SECP256k1.h"
+#ifdef WITHGPU
 #include "GPU/GPUEngine.h"
+#endif
 #include "CommonUtils.h"
 #include <fstream>
 #include <string>
@@ -38,8 +40,10 @@
 
 using namespace std;
 
+#ifdef WITHGPU
 // Global RAII GPU memory guard for emergency cleanup
 std::unique_ptr<CudaMemoryGuard> g_gpu_guard;
+#endif
 
 // Atomic flag for safe signal handling
 static std::atomic<bool> g_shutdown_requested{false};
@@ -66,11 +70,13 @@ bool check_and_handle_shutdown()
     printf("Processing shutdown signal %d...\n", signal);
 
     // Perform safe cleanup
+#ifdef WITHGPU
     if (g_gpu_guard)
     {
       printf("Performing GPU cleanup...\n");
       g_gpu_guard.reset(); // This will call the destructor safely
     }
+#endif
 
     printf("Cleanup completed. Exiting...\n");
     return true;
@@ -212,8 +218,10 @@ int main(int argc, char *argv[])
   signal(SIGBREAK, safe_signal_handler);
 #endif
 
+#ifdef WITHGPU
   // Initialize RAII GPU memory guard
   g_gpu_guard = std::make_unique<CudaMemoryGuard>();
+#endif
 
   // Global Init
   Timer::Init();
@@ -490,7 +498,9 @@ int main(int argc, char *argv[])
       return 0; // Clean shutdown due to signal
     }
 
+#ifdef WITHGPU
     GPUEngine::ForceGPUCleanup();
+#endif
     delete secp;
     // v automatically cleaned by unique_ptr destructor
     return -1;
@@ -506,7 +516,9 @@ int main(int argc, char *argv[])
       return 0; // Clean shutdown due to signal
     }
 
+#ifdef WITHGPU
     GPUEngine::ForceGPUCleanup();
+#endif
     delete secp;
     // v automatically cleaned by unique_ptr destructor
     return -1;

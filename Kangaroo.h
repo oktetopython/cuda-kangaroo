@@ -41,10 +41,14 @@ typedef int SOCKET;
 #include <vector>
 #include <atomic>
 #include <memory>
+#include "CommonUtils.h"
+#include "Constants.h"
 #include "SECPK1/SECP256k1.h"
 #include "HashTable.h"
 #include "SECPK1/IntGroup.h"
+#ifdef WITHGPU
 #include "GPU/GPUEngine.h"
+#endif
 
 #ifdef WIN64
 typedef HANDLE THREAD_HANDLE;

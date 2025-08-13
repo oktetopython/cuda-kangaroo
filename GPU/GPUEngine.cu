@@ -66,6 +66,8 @@ __global__ void comp_kangaroos(uint64_t *kangaroos, uint32_t maxFound, uint32_t 
   ComputeKangaroos(kangaroos + xPtr, maxFound, found, dpMask);
 }
 
+extern "C" __global__ void gecc_kangaroo_kernel(uint64_t *kangaroos_in, uint32_t *found_out, uint32_t maxFound, uint64_t dpMask);
+
 // ---------------------------------------------------------------------------------------
 // #define GPU_CHECK
 #ifdef GPU_CHECK
@@ -224,8 +226,8 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
   // Prefer L1 cache for better performance (We do not use __shared__ memory at all)
   // Note: cudaDeviceSetCacheConfig is deprecated since CUDA 9.0
   // Using modern per-function cache configuration instead
-  err = cudaFuncSetCacheConfig(comp_kangaroos, cudaFuncCachePreferL1);
-  if (!CheckCudaError(err, "cudaFuncSetCacheConfig for comp_kangaroos"))
+  err = cudaFuncSetCacheConfig(gecc_kangaroo_kernel, cudaFuncCachePreferL1);
+  if (!CheckCudaError(err, "cudaFuncSetCacheConfig for gecc_kangaroo_kernel"))
   {
     // If per-function config fails, try the legacy device-wide setting for compatibility
     err = cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
@@ -910,7 +912,7 @@ bool GPUEngine::callKernel()
   }
 
   // Call the kernel (Perform STEP_SIZE keys per thread)
-  comp_kangaroos<<<nbThread / nbThreadPerGroup, nbThreadPerGroup>>>(inputKangaroo, maxFound, outputItem, dpMask);
+  gecc_kangaroo_kernel<<<nbThread / nbThreadPerGroup, nbThreadPerGroup>>>(inputKangaroo, maxFound, outputItem, dpMask);
 
   // Check for kernel launch errors
   err = cudaGetLastError();
