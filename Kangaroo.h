@@ -44,7 +44,18 @@ typedef int SOCKET;
 #include "SECPK1/SECP256k1.h"
 #include "HashTable.h"
 #include "SECPK1/IntGroup.h"
+#include "Constants.h"
+#ifdef WITHGPU
 #include "GPU/GPUEngine.h"
+#else
+// Define ITEM structure for CPU-only mode
+typedef struct
+{
+  Int x;
+  Int d;
+  uint64_t kIdx;
+} ITEM;
+#endif
 
 #ifdef WIN64
 typedef HANDLE THREAD_HANDLE;
@@ -146,11 +157,19 @@ public:
   Kangaroo(Secp256K1 *secp, int32_t initDPSize, bool useGpu, std::string &workFile, std::string &iWorkFile,
            uint32_t savePeriod, bool saveKangaroo, bool saveKangarooByServer, double maxStep, int wtimeout, int sport, int ntimeout,
            std::string serverIp, std::string outputFile, bool splitWorkfile);
+#ifdef WITHGPU
   void Run(int nbThread, std::vector<int> gpuId, std::vector<int> gridSize);
+#else
+  void Run(int nbThread);
+#endif
   void RunServer();
   bool ParseConfigFile(std::string &fileName);
   bool LoadWork(std::string &fileName);
+#ifdef WITHGPU
   void Check(std::vector<int> gpuId, std::vector<int> gridSize);
+#else
+  void Check();
+#endif
   void MergeDir(std::string &dirname, std::string &dest);
   bool MergeWork(std::string &file1, std::string &file2, std::string &dest, bool printStat = true);
   void WorkInfo(std::string &fileName);
@@ -199,6 +218,13 @@ private:
   void SaveServerWork();
   void FetchWalks(uint64_t nbWalk, Int *x, Int *y, Int *d);
   void FetchWalks(uint64_t nbWalk, std::vector<int128_t> &kangs, Int *x, Int *y, Int *d);
+
+  // Optimized checkpoint functions
+  void SaveWorkOptimized(uint64_t totalCount, double totalTime, TH_PARAM *threads, int nbThread);
+  bool LoadWorkOptimized(std::string &fileName);
+  bool ConvertCheckpointToOptimized(const std::string &legacyFile, const std::string &optimizedFile);
+  bool ValidateCheckpoint(const std::string &fileName);
+  void ShowCheckpointInfo(const std::string &fileName);
   void FectchKangaroos(TH_PARAM *threads);
   FILE *ReadHeader(std::string fileName, uint32_t *version, int type);
   bool SaveHeader(std::string fileName, FILE *f, int type, uint64_t totalCount, double totalTime);

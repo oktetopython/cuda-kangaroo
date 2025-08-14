@@ -451,10 +451,19 @@ void Kangaroo::CheckWorkFile(int nbCore, std::string &fileName)
   }
 }
 
+#ifdef WITHGPU
 void Kangaroo::Check(std::vector<int> gpuId, std::vector<int> gridSize)
 {
 
   Int::Check();
+#else
+void Kangaroo::Check()
+{
+
+  Int::Check();
+  std::vector<int> gpuId;
+  std::vector<int> gridSize;
+#endif
 
   initDPSize = 8;
   SetDP(initDPSize);

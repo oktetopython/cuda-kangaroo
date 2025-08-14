@@ -18,7 +18,9 @@
 #include "Kangaroo.h"
 #include "Timer.h"
 #include "SECPK1/SECP256k1.h"
+#ifdef WITHGPU
 #include "GPU/GPUEngine.h"
+#endif
 #include "CommonUtils.h"
 #include <fstream>
 #include <string>
@@ -38,8 +40,10 @@
 
 using namespace std;
 
+#ifdef WITHGPU
 // Global RAII GPU memory guard for emergency cleanup
 std::unique_ptr<CudaMemoryGuard> g_gpu_guard;
+#endif
 
 // Atomic flag for safe signal handling
 static std::atomic<bool> g_shutdown_requested{false};
@@ -54,7 +58,8 @@ void safe_signal_handler(int signal)
 
   // Use write() instead of printf() - it's async-signal-safe
   const char msg[] = "\nShutdown signal received, cleaning up...\n";
-  write(STDERR_FILENO, msg, sizeof(msg) - 1);
+  ssize_t result = write(STDERR_FILENO, msg, sizeof(msg) - 1);
+  (void)result; // Suppress unused variable warning
 }
 
 // Function to check and handle shutdown signals safely
@@ -66,11 +71,13 @@ bool check_and_handle_shutdown()
     printf("Processing shutdown signal %d...\n", signal);
 
     // Perform safe cleanup
+#ifdef WITHGPU
     if (g_gpu_guard)
     {
       printf("Performing GPU cleanup...\n");
       g_gpu_guard.reset(); // This will call the destructor safely
     }
+#endif
 
     printf("Cleanup completed. Exiting...\n");
     return true;
@@ -96,13 +103,21 @@ bool check_and_handle_shutdown()
 void printUsage()
 {
 
-  printf("Kangaroo [-v] [-t nbThread] [-d dpBit] [gpu] [-check]\n");
+  printf("Kangaroo [-v] [-t nbThread] [-d dpBit]");
+#ifdef WITHGPU
+  printf(" [-gpu] [-check]\n");
   printf("         [-gpuId gpuId1[,gpuId2,...]] [-g g1x,g1y[,g2x,g2y,...]]\n");
+#else
+  printf(" [-check]\n");
+  printf("         ");
+#endif
   printf("         inFile\n");
   printf(" -v: Print version\n");
+#ifdef WITHGPU
   printf(" -gpu: Enable gpu calculation\n");
   printf(" -gpuId gpuId1,gpuId2,...: List of GPU(s) to use, default is 0\n");
   printf(" -g g1x,g1y,g2x,g2y,...: Specify GPU(s) kernel gridsize, default is 2*(MP),2*(Core/MP)\n");
+#endif
   printf(" -d: Specify number of leading zeros for the DP method (default is auto)\n");
   printf(" -t nbThread: Secify number of thread\n");
   printf(" -w workfile: Specify file to save work into (current processed key only)\n");
@@ -123,8 +138,12 @@ void printUsage()
   printf(" -sp port: Server port, default is 17403\n");
   printf(" -nt timeout: Network timeout in millisec (default is 3000ms)\n");
   printf(" -o fileName: output result to fileName\n");
+#ifdef WITHGPU
   printf(" -l: List cuda enabled devices\n");
   printf(" -check: Check GPU kernel vs CPU\n");
+#else
+  printf(" -check: Check work file integrity\n");
+#endif
   printf(" inFile: intput configuration file\n");
   exit(0);
 }
@@ -174,8 +193,10 @@ static int nbCPUThread;
 static string configFile = "";
 static bool checkFlag = false;
 static bool gpuEnable = false;
+#ifdef WITHGPU
 static vector<int> gpuId = {0};
 static vector<int> gridSize;
+#endif
 static string workFile = "";
 static string checkWorkFile = "";
 static string iWorkFile = "";
@@ -213,7 +234,9 @@ int main(int argc, char *argv[])
 #endif
 
   // Initialize RAII GPU memory guard
+#ifdef WITHGPU
   g_gpu_guard = std::make_unique<CudaMemoryGuard>();
+#endif
 
   // Global Init
   Timer::Init();
@@ -332,19 +355,34 @@ int main(int argc, char *argv[])
     }
     else if (strcmp(argv[a], "-gpu") == 0)
     {
+#ifdef WITHGPU
       gpuEnable = true;
+#else
+      printf("GPU code not compiled, use -DWITHGPU when compiling.\n");
+      exit(1);
+#endif
       a++;
     }
     else if (strcmp(argv[a], "-gpuId") == 0)
     {
+#ifdef WITHGPU
       CHECKARG("-gpuId", 1);
       CommonUtils::getInts("gpuId", gpuId, string(argv[a]), ',');
+#else
+      printf("GPU code not compiled, use -DWITHGPU when compiling.\n");
+      exit(1);
+#endif
       a++;
     }
     else if (strcmp(argv[a], "-g") == 0)
     {
+#ifdef WITHGPU
       CHECKARG("-g", 1);
       CommonUtils::getInts("gridSize", gridSize, string(argv[a]), ',');
+#else
+      printf("GPU code not compiled, use -DWITHGPU when compiling.\n");
+      exit(1);
+#endif
       a++;
     }
     else if (strcmp(argv[a], "-v") == 0)
@@ -396,6 +434,7 @@ int main(int argc, char *argv[])
     }
   }
 
+#ifdef WITHGPU
   if (gridSize.size() == 0)
   {
     for (int i = 0; i < (int)gpuId.size(); i++)
@@ -409,12 +448,17 @@ int main(int argc, char *argv[])
     printf("Invalid gridSize or gpuId argument, must have coherent size\n");
     exit(-1);
   }
+#endif
 
   auto v = std::make_unique<Kangaroo>(secp, dp, gpuEnable, workFile, iWorkFile, savePeriod, saveKangaroo, saveKangarooByServer,
                                       maxStep, wtimeout, port, ntimeout, serverIP, outputFile, splitWorkFile);
   if (checkFlag)
   {
+#ifdef WITHGPU
     v->Check(gpuId, gridSize);
+#else
+    v->Check();
+#endif
     exit(0);
   }
   else
@@ -471,7 +515,11 @@ int main(int argc, char *argv[])
     if (serverMode)
       v->RunServer();
     else
+#ifdef WITHGPU
       v->Run(nbCPUThread, gpuId, gridSize);
+#else
+      v->Run(nbCPUThread);
+#endif
 
     // Check for shutdown signals after main algorithm completes
     if (check_and_handle_shutdown())
@@ -490,7 +538,9 @@ int main(int argc, char *argv[])
       return 0; // Clean shutdown due to signal
     }
 
+#ifdef WITHGPU
     GPUEngine::ForceGPUCleanup();
+#endif
     delete secp;
     // v automatically cleaned by unique_ptr destructor
     return -1;
@@ -506,7 +556,9 @@ int main(int argc, char *argv[])
       return 0; // Clean shutdown due to signal
     }
 
+#ifdef WITHGPU
     GPUEngine::ForceGPUCleanup();
+#endif
     delete secp;
     // v automatically cleaned by unique_ptr destructor
     return -1;
@@ -517,7 +569,11 @@ int main(int argc, char *argv[])
   // v automatically cleaned by unique_ptr destructor
 
   // GPU memory will be automatically cleaned by RAII guard destructor
+#ifdef WITHGPU
   printf("Program completed successfully - GPU memory cleaned\n");
+#else
+  printf("Program completed successfully\n");
+#endif
 
   return 0;
 }
